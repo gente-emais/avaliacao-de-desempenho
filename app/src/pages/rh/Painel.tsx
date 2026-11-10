@@ -71,7 +71,6 @@ export default function Painel() {
             {r.etapas.sort((a, b) => a.ordem - b.ordem).map((e) => (
               <li key={e.ordem} style={{ border: '1px solid var(--borda)', borderRadius: 12, padding: 12, background: e.status === 'aberta' ? 'var(--ok-bg)' : '#fafcff' }}>
                 <strong>{e.ordem}. {e.nome}</strong>
-                <div className="muted">{data(e.inicio)} a {data(e.fim)}</div>
                 <span className={`pill ${e.status === 'aberta' ? 'ok' : e.status === 'fechada' ? 'neutro' : 'pend'}`}>{e.status === 'aberta' ? 'Em andamento' : e.status === 'fechada' ? 'Fechada' : 'Aguardando'}</span>
               </li>
             ))}

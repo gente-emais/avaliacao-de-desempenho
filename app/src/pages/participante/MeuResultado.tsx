@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase, rpc } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { nota } from '../../lib/format'
 
+// Devolutiva do colaborador: mostra só a classificação (faixa), sem notas numéricas.
 interface Res { rodada_id: string; nota_final: number | null; nota_autoavaliacao: number | null; faixa_nome: string | null; rodada: { nome: string; ano: number } }
 interface Faixa { nome: string; minimo: number; maximo: number; ordem: number }
 interface BlocoMedia { nome: string; gestor: number | null; auto: number | null }
 interface Lider { pergunta: string; media: number; respondentes: number }
+
+const CORES = ['#f3c9b9', '#dbe4f0', '#4ed8b0', '#1e756a']
+const CORES_TEXTO = ['#9a3d1d', '#2f4858', '#14604f', '#ffffff']
+const CONCORDANCIA = ['Estou seguro que não', 'Na maioria das vezes, não', 'Na maioria das vezes, sim', 'Estou seguro que sim']
 
 export default function MeuResultado() {
   const { eu, temEquipe } = useAuth()
@@ -54,6 +58,14 @@ export default function MeuResultado() {
     })()
   }, [sel, eu?.id, temEquipe])
 
+  // Converte uma média na faixa correspondente (mesmas faixas da nota final)
+  const faixaDe = (v: number | null) => {
+    if (v == null) return null
+    const r = Math.round(v * 100) / 100
+    const i = faixas.findIndex((f) => r >= Number(f.minimo) && r <= Number(f.maximo))
+    return i >= 0 ? { nome: faixas[i].nome, i } : null
+  }
+
   const atual = lista.find((l) => l.rodada_id === sel)
   if (!lista.length) return (
     <>
@@ -61,7 +73,8 @@ export default function MeuResultado() {
       <div className="card"><p>Seu resultado aparece aqui quando o RH liberar a devolutiva da rodada.</p></div>
     </>
   )
-  const nf = Number(atual?.nota_final ?? 0)
+  const iFinal = faixas.findIndex((f) => f.nome === atual?.faixa_nome)
+  const auto = faixaDe(atual?.nota_autoavaliacao ?? null)
 
   return (
     <>
@@ -74,42 +87,53 @@ export default function MeuResultado() {
           <button onClick={() => window.print()}>Baixar PDF</button>
         </div>
       </div>
-      <section className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 32, alignItems: 'center' }}>
-        <div style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span className="muted">Nota final</span>
-          <span style={{ fontSize: 60, fontWeight: 800, color: 'var(--verde-escuro)', lineHeight: 1 }}>{nota(atual?.nota_final)}</span>
-          <span className="pill ok" style={{ alignSelf: 'flex-start', fontSize: 14 }}>{atual?.faixa_nome}</span>
-          <span className="muted">Autoavaliação: {nota(atual?.nota_autoavaliacao)}</span>
+
+      <section className="card" style={{ gap: 18 }}>
+        <span className="muted">Sua classificação</span>
+        <div className="linha" style={{ alignItems: 'baseline', gap: 16 }}>
+          <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--verde-escuro)', lineHeight: 1.1 }}>{atual?.faixa_nome}</span>
+          {auto && <span className="muted">Na sua autoavaliação: <strong>{auto.nome}</strong></span>}
         </div>
-        <div style={{ flex: '3 1 420px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ position: 'relative', paddingTop: 28 }}>
-            <div style={{ position: 'absolute', top: 0, left: `${(nf / 4) * 100}%`, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 700 }}>você ▾</div>
-            <div style={{ display: 'flex', height: 18, borderRadius: 9, overflow: 'hidden', gap: 2 }}>
-              {faixas.map((f, i) => (
-                <div key={f.nome} style={{ flex: `${Number(f.maximo) - Number(f.minimo) + 0.01} 1 0`, background: ['#f3c9b9', '#dbe4f0', '#4ed8b0', '#1e756a'][i] ?? '#dbe4f0' }} />
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 2, fontSize: 12 }} className="muted">
-            {faixas.map((f) => <span key={f.nome} style={{ flex: `${Number(f.maximo) - Number(f.minimo) + 0.01} 1 0`, fontWeight: f.nome === atual?.faixa_nome ? 700 : 400 }}>{f.nome}<br />{nota(f.minimo)}–{nota(f.maximo)}</span>)}
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${faixas.length || 1}, minmax(0, 1fr))`, gap: 6 }}>
+          {faixas.map((f, i) => {
+            const ativa = i === iFinal
+            return (
+              <div key={f.nome} style={{
+                borderRadius: 10, padding: '14px 10px', textAlign: 'center', fontSize: 14, fontWeight: ativa ? 800 : 500,
+                background: ativa ? CORES[i] : '#f3f6fa', color: ativa ? CORES_TEXTO[i] : 'var(--muted)',
+                outline: ativa ? '3px solid var(--verde-escuro)' : 'none', outlineOffset: 2,
+              }}>
+                {ativa && <div style={{ fontSize: 12, marginBottom: 4 }}>você está aqui</div>}
+                {f.nome}
+              </div>
+            )
+          })}
         </div>
       </section>
 
       <section className="card">
         <div className="linha entre">
-          <h2>Por competência: gestor × autoavaliação</h2>
-          <span className="muted">Escala de 1 a 4 · só o gestor conta na nota</span>
+          <h2>Por competência</h2>
+          <span className="muted">O que o seu gestor avaliou e o que você se deu</span>
         </div>
-        {blocos.map((b) => (
-          <div key={b.nome} style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 240px) 1fr', gap: 16, alignItems: 'center', borderTop: '1px solid #e8eef6', paddingTop: 10 }}>
-            <strong style={{ fontSize: 14 }}>{b.nome}</strong>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <Barra v={b.gestor} cor="var(--verde-escuro)" rotulo="Gestor" />
-              {b.auto != null && <Barra v={b.auto} cor="#7e5bdd" rotulo="Você" />}
-            </div>
-          </div>
-        ))}
+        <div className="tabela-box">
+          <table style={{ minWidth: 520 }}>
+            <thead><tr><th>Competência</th><th>Avaliação do gestor</th><th>Sua autoavaliação</th></tr></thead>
+            <tbody>
+              {blocos.map((b) => {
+                const g = faixaDe(b.gestor)
+                const a = faixaDe(b.auto)
+                return (
+                  <tr key={b.nome}>
+                    <td><strong>{b.nome}</strong></td>
+                    <td>{g ? <Selo i={g.i} nome={g.nome} /> : '—'}</td>
+                    <td>{a ? <Selo i={a.i} nome={a.nome} /> : <span className="muted">Não se aplica</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {(textos.fortes || textos.desenvolver) && (
@@ -122,20 +146,19 @@ export default function MeuResultado() {
       {lider && lider.length > 0 && (
         <section className="card">
           <h2>Como seu time te avaliou como líder</h2>
-          <p className="muted">Médias de {lider[0].respondentes} respostas, sem identificar quem respondeu (mínimo de 3).</p>
-          {lider.map((l) => <div key={l.pergunta} className="linha entre" style={{ borderTop: '1px solid #e8eef6', paddingTop: 10 }}><span>{l.pergunta}</span><strong>{nota(l.media)}</strong></div>)}
+          <p className="muted">Resposta predominante do time, sem identificar quem respondeu (mínimo de 3 respostas).</p>
+          {lider.map((l) => (
+            <div key={l.pergunta} className="linha entre" style={{ borderTop: '1px solid #e8eef6', paddingTop: 10 }}>
+              <span style={{ flex: '1 1 300px' }}>{l.pergunta}</span>
+              <span className="pill neutro">{CONCORDANCIA[Math.min(3, Math.max(0, Math.round(Number(l.media)) - 1))]}</span>
+            </div>
+          ))}
         </section>
       )}
     </>
   )
 }
 
-function Barra({ v, cor, rotulo }: { v: number | null; cor: string; rotulo: string }) {
-  return (
-    <div className="linha" style={{ flexWrap: 'nowrap' }}>
-      <span className="muted" style={{ width: 48 }}>{rotulo}</span>
-      <div className="barra" style={{ flex: 1, height: 12 }}><div style={{ width: `${((v ?? 0) / 4) * 100}%`, background: cor }} /></div>
-      <strong style={{ width: 40, textAlign: 'right' }}>{nota(v)}</strong>
-    </div>
-  )
+function Selo({ i, nome }: { i: number; nome: string }) {
+  return <span className="pill" style={{ background: CORES[i], color: CORES_TEXTO[i] }}>{nome}</span>
 }

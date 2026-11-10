@@ -34,8 +34,6 @@ export default function Rodadas() {
   const [tipo, setTipo] = useState<TipoRodada>('avaliativo')
   const [nome, setNome] = useState('')
   const [ano, setAno] = useState(new Date().getFullYear())
-  const [prazoFeedback, setPrazoFeedback] = useState('')
-  const [etapas, setEtapas] = useState<Etapa[]>(ETAPAS.avaliativo.map((e) => ({ ...e, inicio: '', fim: '' })))
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
   const [contagem, setContagem] = useState<{ total: number; porPerfil: Record<string, number>; semGestor: number } | null>(null)
 
@@ -56,16 +54,16 @@ export default function Rodadas() {
   function escolherTipo(t: TipoRodada) {
     setTipo(t)
     setNome(`${TIPO_RODADA[t]} ${ano}`)
-    setEtapas(ETAPAS[t].map((e) => ({ ...e, inicio: '', fim: '' })))
   }
   useEffect(() => { setNome(`${TIPO_RODADA[tipo]} ${ano}`) }, [ano])
 
   async function salvar(abrir: boolean) {
     setMsg(null)
-    if (etapas.some((e) => !e.inicio || !e.fim)) return setMsg({ t: 'Preencha início e fim de todas as etapas.', c: 'erro' })
-    if (etapas.some((e) => e.fim < e.inicio)) return setMsg({ t: 'Alguma etapa termina antes de começar.', c: 'erro' })
+    // As etapas organizam a ordem da rodada; a EMAIS não trabalha com datas, então usamos a data de hoje como registro.
+    const hoje = new Date().toISOString().slice(0, 10)
+    const etapas: Etapa[] = ETAPAS[tipo].map((e) => ({ ...e, inicio: hoje, fim: hoje }))
     const { data: r, error } = await supabase.from('rodadas').insert({
-      nome, tipo, ano, prazo_feedback: tipo === 'feedback' ? prazoFeedback || etapas[0].fim : null,
+      nome, tipo, ano,
       escala_nota_id: tipo === 'avaliativo' ? (await supabase.from('escalas').select('id').eq('codigo', 'competencia').single()).data?.id : null,
     }).select('id').single()
     if (error || !r) return setMsg({ t: error?.message ?? 'Erro ao criar a rodada', c: 'erro' })
@@ -113,18 +111,6 @@ export default function Rodadas() {
         <div className="grade" style={{ ['--min' as string]: '220px' }}>
           <label className="campo">Nome da rodada<input value={nome} onChange={(e) => setNome(e.target.value)} /></label>
           <label className="campo">Ano de referência<input type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} /></label>
-          {tipo === 'feedback' && <label className="campo">Prazo da Emais para o feedback<small>Cruzado com a resposta "recebi no prazo"</small><input type="date" value={prazoFeedback} onChange={(e) => setPrazoFeedback(e.target.value)} /></label>}
-        </div>
-        <h3>Datas de cada etapa</h3>
-        <p className="muted">Os lembretes por e-mail (7 e 2 dias antes, e prazo vencido) saem com base nessas datas.</p>
-        <div className="grade" style={{ ['--min' as string]: '240px' }}>
-          {etapas.map((e, i) => (
-            <fieldset key={e.codigo} style={{ border: '1px solid var(--borda)', borderRadius: 12, padding: '10px 14px', margin: 0, display: 'flex', gap: 10 }}>
-              <legend style={{ fontWeight: 700, padding: '0 6px', fontSize: 14 }}>{e.ordem}. {e.nome}</legend>
-              <label className="campo" style={{ flex: 1, fontWeight: 400 }}>Início<input type="date" value={e.inicio} onChange={(v) => setEtapas((x) => x.map((y, j) => j === i ? { ...y, inicio: v.target.value } : y))} /></label>
-              <label className="campo" style={{ flex: 1, fontWeight: 400 }}>Fim<input type="date" value={e.fim} onChange={(v) => setEtapas((x) => x.map((y, j) => j === i ? { ...y, fim: v.target.value } : y))} /></label>
-            </fieldset>
-          ))}
         </div>
         {contagem && (
           <div className="aviso neutro">
@@ -141,14 +127,14 @@ export default function Rodadas() {
       <section className="card">
         <h2>Rodadas</h2>
         <div className="tabela-box"><table>
-          <thead><tr><th>Rodada</th><th>Tipo</th><th>Situação</th><th>Etapa atual</th><th>Foto</th><th></th></tr></thead>
+          <thead><tr><th>Rodada</th><th>Tipo</th><th>Situação</th><th>Etapa atual</th><th>Aberta em</th><th></th></tr></thead>
           <tbody>{lista.map((r) => {
             const atual = r.etapas.find((e) => e.status === 'aberta')
             return (
               <tr key={r.id}>
                 <td><strong>{r.nome}</strong></td><td>{TIPO_RODADA[r.tipo]}</td>
                 <td><span className={`pill ${STATUS_RODADA[r.status][1]}`}>{STATUS_RODADA[r.status][0]}</span></td>
-                <td>{atual ? `${atual.nome} (até ${data(atual.fim)})` : '—'}</td><td>{data(r.foto_em)}</td>
+                <td>{atual ? atual.nome : '—'}</td><td>{data(r.foto_em)}</td>
                 <td className="linha" style={{ justifyContent: 'flex-end' }}>
                   {r.status === 'rascunho' && <button className="primario pequeno" onClick={() => abrirRodada(r.id)}>Abrir</button>}
                   {r.status === 'aberta' && <>

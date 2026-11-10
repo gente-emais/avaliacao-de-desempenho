@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { STATUS, data, dataHora, tituloTarefa } from '../../lib/format'
+import { STATUS, dataHora, tituloTarefa } from '../../lib/format'
 
 interface Tarefa {
   id: string
@@ -22,7 +22,6 @@ const SELECT = `id, grupo, status, avaliado_id, avaliador_id,
   avaliador:pessoas!avaliacoes_avaliador_id_fkey(nome, gestor_id),
   aceite:aceites(aceito_em)`
 
-const prazo = (t: Tarefa) => t.rodada.etapas?.find((e) => e.status === 'aberta')?.fim
 
 export default function Inicio() {
   const { eu } = useAuth()
@@ -69,7 +68,7 @@ export default function Inicio() {
               <Link key={t.id} to={`/avaliacao/${t.id}`} className="card" style={{ background: 'var(--cinza-verde-2)', borderColor: 'transparent', color: '#fff', textDecoration: 'none', gap: 6 }}>
                 <span className="muted" style={{ color: '#c9d6de' }}>{t.rodada.nome}</span>
                 <strong>{tituloTarefa(t.rodada.tipo, t.grupo, t.avaliado?.nome ?? '', t.avaliado_id === eu?.id)}</strong>
-                <span style={{ fontSize: 13, color: '#dfe8ee' }}>{STATUS[t.status].rotulo}{prazo(t) ? ` · até ${data(prazo(t))}` : ''}</span>
+                <span style={{ fontSize: 13, color: '#dfe8ee' }}>{STATUS[t.status].rotulo}</span>
               </Link>
             ))}
             {revisoes.map((t) => (
