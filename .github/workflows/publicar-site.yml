@@ -1,0 +1,34 @@
+name: Publicar site
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ivonwgbulavkhzapytkh.supabase.co
+          # Chave publicável: feita para ficar no navegador (a proteção dos dados está no RLS)
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_HW7BHDdzfDmGE55WxttSUw_ncjDGjSx
+      - run: cp dist/index.html dist/404.html && touch dist/.nojekyll
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: app/dist
+          publish_branch: gh-pages
