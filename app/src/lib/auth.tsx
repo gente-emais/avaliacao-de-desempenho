@@ -63,16 +63,17 @@ export const useAuth = () => useContext(Ctx)
 // Login por CPF: no Auth o login técnico é <cpf>@login.emais.app (nunca recebe e-mail).
 export const DOMINIO_LOGIN = 'login.emais.app'
 
-export async function entrarComCpf(cpf: string, senha: string) {
-  const d = cpf.replace(/\D/g, '')
-  const { error } = await supabase.auth.signInWithPassword({ email: `${d}@${DOMINIO_LOGIN}`, password: senha })
+// Aceita CPF (colaboradores) ou e-mail (logins de teste e administradores).
+export async function entrarComCpf(cpfOuEmail: string, senha: string) {
+  const email = cpfOuEmail.includes('@') ? cpfOuEmail.trim().toLowerCase() : `${cpfOuEmail.replace(/\D/g, '')}@${DOMINIO_LOGIN}`
+  const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
   if (error) throw new Error(/rate|many/i.test(error.message) ? 'Muitas tentativas. Aguarde alguns minutos.' : 'CPF ou senha incorretos.')
 }
 
 // Link de primeiro acesso / troca de senha, enviado ao e-mail do cadastro (via n8n).
 export async function pedirLinkDeSenha(cpf: string) {
   const { error } = await supabase.functions.invoke('enviar-acesso', {
-    body: { cpf, redirectTo: `${window.location.origin}/definir-senha` },
+    body: { cpf, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}definir-senha` },
   })
   if (error) throw new Error('Não foi possível enviar o link agora. Procure o time de Gente e Gestão.')
 }

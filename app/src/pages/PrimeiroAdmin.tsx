@@ -33,7 +33,7 @@ export default function PrimeiroAdmin() {
   return (
     <div className="login">
       {disponivel === null ? <div className="card">Verificando…</div> : !disponivel ? (
-        <div className="card"><h1>Configuração concluída</h1><p className="muted">O sistema já tem um administrador. Entre pela tela de login.</p><a className="botao primario" href="/login">Ir para o login</a></div>
+        <div className="card"><h1>Configuração concluída</h1><p className="muted">O sistema já tem um administrador. Entre pela tela de login.</p><a className="botao primario" href={`${import.meta.env.BASE_URL}login`}>Ir para o login</a></div>
       ) : (
         <form className="card" onSubmit={criar}>
           <h1>Configuração inicial</h1>

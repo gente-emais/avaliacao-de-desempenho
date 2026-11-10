@@ -84,7 +84,7 @@ export default function Pessoas() {
   }
 
   async function enviarAcesso(ids: string[]) {
-    const { data, error } = await supabase.functions.invoke('enviar-acesso', { body: { pessoa_ids: ids, redirectTo: `${window.location.origin}/definir-senha` } })
+    const { data, error } = await supabase.functions.invoke('enviar-acesso', { body: { pessoa_ids: ids, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}definir-senha` } })
     if (error) {
       let t = 'Não foi possível enviar.'
       try { const c = await (error as { context?: Response }).context?.json(); if (c?.erro) t = c.erro } catch { /* padrão */ }

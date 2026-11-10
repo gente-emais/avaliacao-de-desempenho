@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { entrarComCpf, pedirLinkDeSenha, useAuth } from '../lib/auth'
 
 const mascaraCpf = (v: string) => {
+  if (/[a-z@]/i.test(v)) return v
   const d = v.replace(/\D/g, '').slice(0, 11)
   return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2')
 }
@@ -41,8 +42,8 @@ export default function Login() {
           <div><strong>EMAIS Desempenho</strong><small style={{ color: 'var(--muted)' }}>Gente e Gestão</small></div>
         </div>
         <h1>Entrar</h1>
-        <label className="campo">CPF
-          <input inputMode="numeric" autoComplete="username" value={cpf} onChange={(e) => setCpf(mascaraCpf(e.target.value))} placeholder="000.000.000-00" required />
+        <label className="campo">CPF ou e-mail
+          <input autoComplete="username" value={cpf} onChange={(e) => setCpf(mascaraCpf(e.target.value))} placeholder="000.000.000-00" required />
         </label>
         <label className="campo">Senha
           <input type="password" autoComplete="current-password" value={senha} onChange={(e) => setSenha(e.target.value)} required />

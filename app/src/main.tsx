@@ -36,7 +36,7 @@ function Protegido({ rh, children }: { rh?: boolean; children: React.ReactNode }
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/definir-senha" element={<DefinirSenha />} />
