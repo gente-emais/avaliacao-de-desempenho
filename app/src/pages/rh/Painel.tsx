@@ -46,9 +46,9 @@ export default function Painel() {
       </div>
 
       <div className="grade" style={{ ['--min' as string]: '200px' }}>
-        <div className="card"><span className="muted">Pessoas ativas</span><span className="kpi">{pessoas.ativos}</span><span className="muted">{pessoas.assistidos} com preenchimento assistido</span></div>
-        <div className="card"><span className="muted">Sem perfil de avaliação</span><span className="kpi">{pessoas.semPerfil}</span><span className="muted">ficam fora das rodadas</span></div>
-        <div className="card"><span className="muted">Rodadas abertas</span><span className="kpi">{resumos.length}</span></div>
+        <Link className="card atalho" to="/rh/configuracao?aba=colaboradores"><span className="muted">Pessoas ativas</span><span className="kpi">{pessoas.ativos}</span><span className="muted">{pessoas.assistidos} com preenchimento assistido</span><span className="ir">Ver colaboradores →</span></Link>
+        <Link className="card atalho" to="/rh/configuracao?aba=colaboradores&filtro=sem_perfil"><span className="muted">Sem perfil de avaliação</span><span className="kpi">{pessoas.semPerfil}</span><span className="muted">ficam fora das rodadas</span><span className="ir">{pessoas.semPerfil ? 'Definir perfil →' : 'Ver colaboradores →'}</span></Link>
+        <Link className="card atalho" to="/rh/rodadas"><span className="muted">Rodadas abertas</span><span className="kpi">{resumos.length}</span><span className="ir">Ver rodadas →</span></Link>
       </div>
 
       {resumos.length === 0 && <div className="card"><p>Nenhuma rodada aberta. <Link to="/rh/rodadas">Abrir uma rodada</Link>.</p></div>}
@@ -62,10 +62,10 @@ export default function Painel() {
             <Link className="botao primario" to={`/rh/acompanhamento?rodada=${r.id}`}>Ver pendências</Link>
           </div>
           <div className="grade" style={{ ['--min' as string]: '160px' }}>
-            <div><span className="muted">Concluídas</span><div className="kpi">{n.concluidas}</div></div>
-            <div><span className="muted">Pendentes</span><div className="kpi">{n.pendentes}</div></div>
-            <div><span className="muted">Aguardando revisão</span><div className="kpi">{n.aguardando}</div></div>
-            <div><span className="muted">Andamento</span><div className="kpi">{n.total ? Math.round((n.concluidas / n.total) * 100) : 0}%</div></div>
+            <Num to={`/rh/acompanhamento?rodada=${r.id}&situacao=concluida`} rotulo="Concluídas" valor={n.concluidas} />
+            <Num to={`/rh/acompanhamento?rodada=${r.id}&situacao=pendente`} rotulo="Pendentes" valor={n.pendentes} />
+            <Num to={`/rh/acompanhamento?rodada=${r.id}&situacao=enviada`} rotulo="Aguardando revisão" valor={n.aguardando} />
+            <Num to={`/rh/acompanhamento?rodada=${r.id}&situacao=t`} rotulo="Andamento" valor={`${n.total ? Math.round((n.concluidas / n.total) * 100) : 0}%`} />
           </div>
           <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
             {r.etapas.sort((a, b) => a.ordem - b.ordem).map((e) => (
@@ -78,5 +78,13 @@ export default function Painel() {
         </section>
       ))}
     </>
+  )
+}
+
+function Num({ to, rotulo, valor }: { to: string; rotulo: string; valor: number | string }) {
+  return (
+    <Link className="atalho-num" to={to} aria-label={`${rotulo}: ${valor}. Ver lista`}>
+      <span className="muted">{rotulo}</span><span className="kpi">{valor}</span><span className="ir">Ver lista →</span>
+    </Link>
   )
 }

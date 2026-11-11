@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase, rpc, PESSOA_COLS, type Pessoa } from '../../../lib/supabase'
 
 const normal = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -7,6 +8,8 @@ export default function Colaboradores() {
   const [pessoas, setPessoas] = useState<Pessoa[]>([])
   const [perfis, setPerfis] = useState<{ id: number; nome: string }[]>([])
   const [busca, setBusca] = useState('')
+  const [params] = useSearchParams()
+  const [soSemPerfil, setSoSemPerfil] = useState(params.get('filtro') === 'sem_perfil')
   const [mostrarInativos, setMostrarInativos] = useState(false)
   const [sel, setSel] = useState<Pessoa | null>(null)
   const [novo, setNovo] = useState(false)
@@ -23,8 +26,8 @@ export default function Colaboradores() {
 
   const nomeDe = (id: string | null) => pessoas.find((p) => p.id === id)?.nome ?? '—'
   const perfilDe = (id: number | null) => perfis.find((p) => p.id === id)?.nome
-  const lista = useMemo(() => pessoas.filter((p) => (mostrarInativos || p.ativo) &&
-    (!busca || normal(`${p.nome} ${p.cargo} ${p.area}`).includes(normal(busca)))), [pessoas, busca, mostrarInativos])
+  const lista = useMemo(() => pessoas.filter((p) => (mostrarInativos || p.ativo) && (!soSemPerfil || !p.perfil_id) &&
+    (!busca || normal(`${p.nome} ${p.cargo} ${p.area}`).includes(normal(busca)))), [pessoas, busca, mostrarInativos, soSemPerfil])
 
   async function salvar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -127,6 +130,7 @@ export default function Colaboradores() {
           <div className="linha">
             <input type="search" placeholder="Buscar nome, cargo ou área" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar" style={{ width: 260 }} />
             <label className="linha" style={{ fontSize: 13 }}><input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} style={{ minHeight: 0, width: 16, height: 16 }} />Inativos</label>
+            <label className="linha" style={{ fontSize: 13 }}><input type="checkbox" checked={soSemPerfil} onChange={(e) => setSoSemPerfil(e.target.checked)} style={{ minHeight: 0, width: 16, height: 16 }} />Só sem perfil</label>
             <button className="primario" onClick={() => { setNovo(true); setSel(null); window.scrollTo({ top: 0 }) }}>+ Novo</button>
           </div>
         </div>

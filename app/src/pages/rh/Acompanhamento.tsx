@@ -9,6 +9,19 @@ interface Linha {
   lider_status: StatusAvaliacao | null; pares_pendentes: number; pendencias: number
 }
 
+const SITUACOES: Record<string, string> = {
+  p: 'Só com pendência', t: 'Todas', pendente: 'Com avaliação pendente', enviada: 'Aguardando revisão', concluida: 'Com avaliação concluída',
+  'g:concluida': 'Gestor: concluída', 'g:em_andamento': 'Gestor: em andamento', 'g:pendente': 'Gestor: não iniciada', 'g:enviada': 'Gestor: aguardando revisão',
+}
+function passa(l: Linha, s: string) {
+  const todos = [l.gestor_status, l.auto_status, l.lider_status]
+  if (s === 't') return true
+  if (s === 'pendente') return todos.some((x) => x === 'pendente' || x === 'em_andamento') || l.pares_pendentes > 0
+  if (s === 'enviada' || s === 'concluida') return todos.includes(s)
+  if (s.startsWith('g:')) return l.gestor_status === s.slice(2)
+  return l.pendencias > 0
+}
+
 function Status({ s }: { s: StatusAvaliacao | null }) {
   if (!s) return <span className="pill neutro">Não se aplica</span>
   return <span className={`pill ${STATUS[s].classe}`}>{STATUS[s].rotulo}</span>
@@ -21,15 +34,15 @@ export default function Acompanhamento() {
   const [busca, setBusca] = useState('')
   const [gestor, setGestor] = useState('')
   const [area, setArea] = useState('')
-  const [soPendentes, setSoPendentes] = useState(true)
   const [msg, setMsg] = useState('')
   const rodadaId = params.get('rodada') ?? ''
-
+  const situacao = params.get('situacao') ?? 'p'
+  const mudar = (k: string, v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set(k, v); return n })
   useEffect(() => {
     supabase.from('rodadas').select('*').in('status', ['aberta', 'encerrada']).order('criado_em', { ascending: false }).then(({ data }) => {
       const l = (data as Rodada[]) ?? []
       setRodadas(l)
-      if (!rodadaId && l[0]) setParams({ rodada: l[0].id })
+      if (!rodadaId && l[0]) mudar('rodada', l[0].id)
     })
   }, [])
   useEffect(() => {
@@ -39,7 +52,7 @@ export default function Acompanhamento() {
   const gestores = useMemo(() => [...new Set(linhas.map((l) => l.gestor).filter(Boolean))].sort() as string[], [linhas])
   const areas = useMemo(() => [...new Set(linhas.map((l) => l.area).filter(Boolean))].sort() as string[], [linhas])
   const filtradas = linhas.filter((l) =>
-    (!soPendentes || l.pendencias > 0) && (!gestor || l.gestor === gestor) && (!area || l.area === area) &&
+    passa(l, situacao) && (!gestor || l.gestor === gestor) && (!area || l.area === area) &&
     (!busca || `${l.nome} ${l.cargo}`.toLowerCase().includes(busca.toLowerCase())))
   const conta = (s: StatusAvaliacao) => linhas.filter((l) => l.gestor_status === s).length
   const rodada = rodadas.find((r) => r.id === rodadaId)
@@ -72,7 +85,7 @@ export default function Acompanhamento() {
       <div className="cabecalho">
         <div><div className="migalha">Visão RH</div><h1>Acompanhamento</h1></div>
         <div className="linha">
-          <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value })} aria-label="Rodada">
+          <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value, situacao })} aria-label="Rodada">
             {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
           </select>
           <button className="primario" disabled={!pendentes.length} onClick={() => lembrar(pendentes)}>Lembrar todos os pendentes ({pendentes.length})</button>
@@ -82,17 +95,18 @@ export default function Acompanhamento() {
       {msg && <div className="aviso info">{msg}</div>}
 
       <div className="linha">
-        <span className="pill ok" style={{ fontSize: 14, padding: '8px 14px' }}>Concluídas {conta('concluida')}</span>
-        <span className="pill info" style={{ fontSize: 14, padding: '8px 14px' }}>Em andamento {conta('em_andamento')}</span>
-        <span className="pill pend" style={{ fontSize: 14, padding: '8px 14px' }}>Não iniciadas {conta('pendente')}</span>
-        <span className="pill roxo" style={{ fontSize: 14, padding: '8px 14px' }}>Aguardando revisão {conta('enviada')}</span>
+        <span className="muted" style={{ fontSize: 13 }}>Avaliação do gestor:</span>
+        {([['concluida', 'ok', 'Concluídas'], ['em_andamento', 'info', 'Em andamento'], ['pendente', 'pend', 'Não iniciadas'], ['enviada', 'roxo', 'Aguardando revisão']] as const).map(([s, c, t]) => (
+          <button key={s} className={`pill ${c}`} aria-pressed={situacao === `g:${s}`} style={{ fontSize: 14, padding: '8px 14px' }}
+            onClick={() => mudar('situacao', situacao === `g:${s}` ? 'p' : `g:${s}`)}>{t} {conta(s)}</button>
+        ))}
       </div>
 
       <section className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', padding: '16px 20px' }}>
         <label className="campo" style={{ flex: '2 1 220px', fontWeight: 400 }}>Buscar pessoa<input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
         <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Gestor<select value={gestor} onChange={(e) => setGestor(e.target.value)}><option value="">Todos</option>{gestores.map((g) => <option key={g}>{g}</option>)}</select></label>
         <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Área<select value={area} onChange={(e) => setArea(e.target.value)}><option value="">Todas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select></label>
-        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Situação<select value={soPendentes ? 'p' : 't'} onChange={(e) => setSoPendentes(e.target.value === 'p')}><option value="p">Só com pendência</option><option value="t">Todas</option></select></label>
+        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Situação<select value={situacao} onChange={(e) => mudar('situacao', e.target.value)}>{Object.entries(SITUACOES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
       </section>
 
       <section className="card" style={{ padding: 8 }}>
