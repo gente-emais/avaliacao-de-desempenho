@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AbasMeuEspaco from '../../components/AbasMeuEspaco'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data } from '../../lib/format'
@@ -17,10 +18,12 @@ export default function Pdi() {
   const { eu, temEquipe } = useAuth()
   const [pessoas, setPessoas] = useState<Pessoa[]>([])
   const [alvo, setAlvo] = useState<string>('')
-  const [objs, setObjs] = useState<Objetivo[]>([])
+  const [todos, setTodos] = useState<Objetivo[]>([])
   const [comps, setComps] = useState<{ id: number; nome: string }[]>([])
   const [novo, setNovo] = useState(false)
   const [erro, setErro] = useState('')
+  const [params] = useSearchParams()
+  const anoSel = params.get('ano') ? Number(params.get('ano')) : null
 
   useEffect(() => {
     if (!eu) return
@@ -34,9 +37,11 @@ export default function Pdi() {
     const { data } = await supabase.from('pdi_objetivos')
       .select('*, competencia:competencias(nome), tarefas:pdi_tarefas(id, nome, concluida, ordem), comentarios:pdi_comentarios(id, texto, criado_em, autor:pessoas(nome))')
       .eq('pessoa_id', alvo).order('inicio')
-    setObjs((data as unknown as Objetivo[]) ?? [])
+    setTodos((data as unknown as Objetivo[]) ?? [])
   }
   useEffect(() => { carregar() }, [alvo])
+  const objs = anoSel ? todos.filter((o) => o.ano === anoSel) : todos
+  const anosPdi = [...new Set(todos.map((o) => o.ano))].sort((a, b) => b - a)
 
   async function alternar(t: Tarefa) {
     await supabase.from('pdi_tarefas').update({ concluida: !t.concluida, concluida_em: t.concluida ? null : new Date().toISOString() }).eq('id', t.id)
@@ -87,6 +92,13 @@ export default function Pdi() {
         </div>
       </div>
       <AbasMeuEspaco />
+      {anosPdi.length > 0 && (
+        <nav className="anos" aria-label="Ano do PDI">
+          <span className="muted">Ano:</span>
+          <Link className={`ano${!anoSel ? ' atual' : ''}`} to="/pdi">Todos</Link>
+          {anosPdi.map((a) => <Link key={a} className={`ano${anoSel === a ? ' atual' : ''}`} to={`/pdi?ano=${a}`}>{a}</Link>)}
+        </nav>
+      )}
 
       <div className="grade" style={{ ['--min' as string]: '180px' }}>
         <div className="card"><span className="muted">Objetivos</span><span className="kpi">{objs.length}</span></div>

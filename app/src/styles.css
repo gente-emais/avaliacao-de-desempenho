@@ -120,3 +120,25 @@ button.pill[aria-pressed="true"] { border-color: currentColor; }
 .aba { flex: none; padding: 12px 16px; font-size: 14px; font-weight: 600; color: var(--muted); text-decoration: none; border-bottom: 3px solid transparent; margin-bottom: -1px; border-radius: 10px 10px 0 0; white-space: nowrap; }
 .aba:hover, .aba:focus-visible { color: var(--texto); background: #fff; outline: none; }
 .aba[aria-current="page"] { color: var(--texto); background: #fff; border-bottom-color: var(--verde-escuro); }
+
+/* O que fazer agora: um bloco por processo */
+.processo { background: #fff; border: 1px solid var(--borda); border-radius: 14px; padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; }
+.processo-topo { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.processo-topo h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.contador { display: inline-flex; align-items: center; min-height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.contador.pend { background: var(--pend-bg); color: var(--pend); }
+.contador.ok { background: var(--ok-bg); color: var(--ok); }
+.contador.info { background: var(--info-bg); color: var(--info); }
+.anos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ano { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--borda-forte); background: #fff; font-size: 13px; font-weight: 600; color: var(--cinza-verde); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.ano:hover, .ano:focus-visible { border-color: var(--verde-escuro); outline: none; }
+.ano.atual { background: var(--verde-escuro); border-color: var(--verde-escuro); color: #fff; }
+.ano .ponto { width: 7px; height: 7px; border-radius: 50%; background: var(--verde-agua); }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.tile { background: var(--cinza-verde-2); color: #fff; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; text-decoration: none; }
+.tile strong { font-size: 15px; }
+.tile > span { font-size: 13px; color: #dfe8ee; }
+a.tile:hover, a.tile:focus-visible { background: var(--cinza-verde); outline: none; }
+.em-dia { color: var(--ok); font-size: 14px; font-weight: 600; }
+.mini { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid #e8eef6; padding-top: 10px; font-size: 14px; color: var(--texto); text-decoration: none; }
+a.mini:hover { color: var(--verde-escuro); }

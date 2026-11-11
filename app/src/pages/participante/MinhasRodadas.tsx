@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { STATUS, TIPO_RODADA, dataHora, tituloTarefa, umAceite } from '../../lib/format'
@@ -22,6 +22,9 @@ const EXPLICA: Record<TipoRodada, string> = {
 export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
   const { eu } = useAuth()
   const [itens, setItens] = useState<Item[] | null>(null)
+  const [historicas, setHistoricas] = useState<Item['rodada'][]>([])
+  const [params] = useSearchParams()
+  const rodadaSel = params.get('rodada')
 
   useEffect(() => {
     if (!eu) return
@@ -36,11 +39,17 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
           x.avaliador_id === eu.id || (x.avaliado_id === eu.id && x.grupo === 'gestor' && tipo !== 'avaliativo' && x.status === 'concluida'))
         setItens(l)
       })
+    // Ciclo Avaliativo: rodadas em que tenho resultado e nenhum formulário (ex.: importadas da Mindsight)
+    if (tipo === 'avaliativo') {
+      supabase.from('resultados').select('rodada:rodadas!inner(id, nome, ano, status, tipo, resultado_liberado_em)').eq('pessoa_id', eu.id).eq('rodada.tipo', 'avaliativo')
+        .then(({ data }) => setHistoricas(((data as unknown as { rodada: Item['rodada'] }[]) ?? []).map((x) => x.rodada)))
+    } else setHistoricas([])
   }, [eu?.id, tipo])
 
   if (!eu) return null
-  const rodadas = [...new Map((itens ?? []).map((i) => [i.rodada.id, i.rodada])).values()]
+  const todasRodadas = [...new Map([...historicas, ...(itens ?? []).map((i) => i.rodada)].map((r) => [r.id, r])).values()]
     .sort((a, b) => Number(b.status === 'aberta') - Number(a.status === 'aberta') || b.ano - a.ano)
+  const rodadas = rodadaSel ? todasRodadas.filter((r) => r.id === rodadaSel) : todasRodadas
 
   function linha(i: Item) {
     const souAvaliado = i.avaliado_id === eu!.id
@@ -69,6 +78,17 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
   return (
     <>
       <p className="muted" style={{ maxWidth: 820 }}>{EXPLICA[tipo]}</p>
+      {todasRodadas.length > 1 && (
+        <nav className="anos" aria-label="Escolher a rodada">
+          <span className="muted">Rodadas:</span>
+          <Link className={`ano${!rodadaSel ? ' atual' : ''}`} to={`/?aba=${tipo}`}>Todas</Link>
+          {todasRodadas.map((r) => (
+            <Link key={r.id} className={`ano${rodadaSel === r.id ? ' atual' : ''}`} to={`/?aba=${tipo}&rodada=${r.id}`} aria-current={rodadaSel === r.id ? 'page' : undefined}>
+              {r.status === 'aberta' && <span className="ponto" aria-hidden="true" />}{r.ano}
+            </Link>
+          ))}
+        </nav>
+      )}
       {itens === null && <div className="card"><p>Carregando…</p></div>}
       {itens !== null && rodadas.length === 0 && (
         <div className="card"><p>Você ainda não tem nada em {TIPO_RODADA[tipo]}. Quando o RH abrir uma rodada, ela aparece aqui.</p></div>
@@ -83,6 +103,7 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
               <span className={`pill ${r.status === 'aberta' ? 'ok' : 'neutro'}`}>{r.status === 'aberta' ? 'Em andamento' : 'Encerrada'}</span>
             </div>
             {doRound.map(linha)}
+            {doRound.length === 0 && <p className="muted">Resultado trazido do sistema anterior; os formulários dessa rodada não estão aqui.</p>}
             {tipo === 'avaliativo' && r.resultado_liberado_em && (
               <div className="linha" style={{ borderTop: '1px solid #e8eef6', paddingTop: 12 }}>
                 <Link className="botao pequeno" to="/resultado">Ver meu resultado</Link>

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import AbasMeuEspaco from '../../components/AbasMeuEspaco'
+import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data } from '../../lib/format'
@@ -17,6 +18,8 @@ export default function OneAOne() {
   const [sel, setSel] = useState<Encontro | null>(null)
   const [privada, setPrivada] = useState('')
   const [novo, setNovo] = useState(false)
+  const [params] = useSearchParams()
+  const anoSel = params.get('ano')
 
   async function carregar() {
     if (!eu) return
@@ -70,6 +73,9 @@ export default function OneAOne() {
   const hoje = new Date().toISOString().slice(0, 10)
   const situacao = (c: Combinado) => c.status === 'concluido' ? ['Concluído', 'ok'] : c.prazo < hoje ? ['Vencido', 'erro'] : ['No prazo', 'pend']
 
+  const lista = anoSel ? encontros.filter((e) => e.data.startsWith(anoSel)) : encontros
+  const anosOne = [...new Set(encontros.map((e) => e.data.slice(0, 4)))].sort().reverse()
+
   return (
     <>
       <div className="cabecalho">
@@ -77,6 +83,13 @@ export default function OneAOne() {
         {temEquipe && <button className="primario" onClick={() => setNovo(!novo)}>+ Novo encontro</button>}
       </div>
       <AbasMeuEspaco />
+      {anosOne.length > 0 && (
+        <nav className="anos" aria-label="Ano dos encontros">
+          <span className="muted">Ano:</span>
+          <Link className={`ano${!anoSel ? ' atual' : ''}`} to="/one-a-one">Todos</Link>
+          {anosOne.map((a) => <Link key={a} className={`ano${anoSel === a ? ' atual' : ''}`} to={`/one-a-one?ano=${a}`}>{a}</Link>)}
+        </nav>
+      )}
 
       {novo && (
         <form className="card" onSubmit={criar}>
@@ -92,8 +105,8 @@ export default function OneAOne() {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
         <section className="card" style={{ flex: '1 1 260px', padding: 12, gap: 4 }}>
           <span className="nav-titulo" style={{ color: 'var(--muted)' }}>Encontros</span>
-          {encontros.length === 0 && <p className="muted" style={{ padding: 8 }}>Nenhum encontro registrado.</p>}
-          {encontros.map((e) => (
+          {lista.length === 0 && <p className="muted" style={{ padding: 8 }}>Nenhum encontro registrado.</p>}
+          {lista.map((e) => (
             <button key={e.id} onClick={() => setSel(e)} style={{ justifyContent: 'space-between', border: 0, background: sel?.id === e.id ? 'var(--ok-bg)' : 'transparent', color: sel?.id === e.id ? 'var(--ok)' : 'var(--texto)' }}>
               <span>{e.gestor_id === eu?.id ? e.liderado.nome : `Com ${e.gestor.nome}`}</span><span className="muted">{data(e.data)}</span>
             </button>
