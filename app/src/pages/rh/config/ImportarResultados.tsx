@@ -15,7 +15,12 @@ const CAMPOS = [
 type Campo = (typeof CAMPOS)[number]['k']
 
 const normal = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
-const MANTER = '__manter__'
+// Nomes usados pela Mindsight → faixa do sistema (usado quando a planilha não tem nota)
+const CONHECIDAS: Record<string, string> = {
+  abaixodoesperado: 'A desenvolver', dentrodoesperado: 'Em desenvolvimento', acimadoesperado: 'Desenvolvido', destaque: 'Consolidado',
+}
+interface FaixaSis { nome: string; minimo: number; maximo: number }
+const numero = (t: string) => { const n = Number(String(t).replace(',', '.')); return t && !isNaN(n) ? Math.round(n * 100) / 100 : null }
 
 interface Previa {
   lidas: number; validas: number; encontradas: number; novas: number; gravado: boolean; rodada_existente: boolean
@@ -33,13 +38,13 @@ export default function ImportarResultados() {
   const [linhasBrutas, setLinhasBrutas] = useState<Record<string, string>[]>([])
   const [mapa, setMapa] = useState<Record<Campo, string>>({} as Record<Campo, string>)
   const [deParaFaixa, setDeParaFaixa] = useState<Record<string, string>>({})
-  const [faixasSistema, setFaixasSistema] = useState<string[]>([])
+  const [faixasSistema, setFaixasSistema] = useState<FaixaSis[]>([])
   const [previa, setPrevia] = useState<Previa | null>(null)
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
 
   useEffect(() => {
-    supabase.from('faixas_classificacao').select('nome').is('rodada_id', null).order('ordem')
-      .then(({ data }) => setFaixasSistema(((data as { nome: string }[]) ?? []).map((f) => f.nome)))
+    supabase.from('faixas_classificacao').select('nome, minimo, maximo').is('rodada_id', null).order('ordem')
+      .then(({ data }) => setFaixasSistema((data as FaixaSis[]) ?? []))
   }, [])
 
   async function ler(f: File) {
@@ -68,20 +73,32 @@ export default function ImportarResultados() {
     if (!mapa.faixa) return []
     return [...new Set(linhasBrutas.map((l) => l[mapa.faixa]).filter(Boolean))].sort()
   }, [linhasBrutas, mapa.faixa])
+  // Sugestão: a faixa do sistema em que cai a maioria das notas daquele nome; sem nota, o equivalente conhecido
+  function sugerir(v: string): string {
+    const porNota: Record<string, number> = {}
+    if (mapa.nota_final) for (const l of linhasBrutas) if (l[mapa.faixa] === v) {
+      const n = numero(l[mapa.nota_final]); const f = n == null ? null : faixasSistema.find((x) => n >= x.minimo && n <= x.maximo)
+      if (f) porNota[f.nome] = (porNota[f.nome] ?? 0) + 1
+    }
+    const top = Object.entries(porNota).sort((a, b) => b[1] - a[1])[0]?.[0]
+    return top ?? faixasSistema.find((f) => normal(f.nome) === normal(v))?.nome ?? CONHECIDAS[normal(v)] ?? ''
+  }
   useEffect(() => {
-    setDeParaFaixa((atual) => Object.fromEntries(valoresFaixa.map((v) => [v, atual[v] ?? (faixasSistema.find((f) => normal(f) === normal(v)) ?? MANTER)])))
-  }, [valoresFaixa, faixasSistema])
+    setDeParaFaixa((atual) => Object.fromEntries(valoresFaixa.map((v) => [v, atual[v] || sugerir(v)])))
+  }, [valoresFaixa, faixasSistema, mapa.nota_final])
 
   function montarLinhas() {
     return linhasBrutas.map((l) => Object.fromEntries(CAMPOS.map((c) => [c.k, mapa[c.k] ? l[mapa[c.k]] ?? '' : ''])))
   }
-  const deParaLista = () => Object.entries(deParaFaixa).map(([original, faixa]) => ({ original, faixa: faixa === MANTER ? original : faixa }))
+  const deParaLista = () => Object.entries(deParaFaixa).map(([original, faixa]) => ({ original, faixa }))
 
   async function conferir() {
     setMsg(null)
     if (!mapa.cpf) return setMsg({ t: 'Indique qual coluna tem o CPF.', c: 'erro' })
     if (!mapa.nota_final && !mapa.faixa) return setMsg({ t: 'Indique a coluna da nota final ou a da classificação.', c: 'erro' })
     if (!nome.trim()) return setMsg({ t: 'Dê um nome para a rodada.', c: 'erro' })
+    const semFaixa = valoresFaixa.filter((v) => !deParaFaixa[v])
+    if (semFaixa.length) return setMsg({ t: `Escolha a faixa do sistema para: ${semFaixa.join(', ')}.`, c: 'erro' })
     try { setPrevia(await rpc<Previa>('importar_resultados_historicos', { p_nome: nome, p_ano: ano, p_linhas: montarLinhas(), p_faixas: deParaLista(), p_confirmar: false })) }
     catch (e) { setMsg({ t: (e as Error).message, c: 'erro' }) }
   }
@@ -131,16 +148,16 @@ export default function ImportarResultados() {
       {valoresFaixa.length > 0 && (
         <section className="card">
           <h2>3. De/para das classificações</h2>
-          <p className="muted">A planilha usa estes nomes de classificação. Escolha a faixa equivalente no sistema ou mantenha o nome original.</p>
+          <p className="muted">Tudo entra padronizado com as faixas do sistema. Já sugerimos a equivalência pelas notas de cada grupo; ajuste se precisar.</p>
           <div className="tabela-box"><table style={{ minWidth: 560 }}>
             <thead><tr><th>Na planilha</th><th>Pessoas</th><th>No sistema</th></tr></thead>
             <tbody>{valoresFaixa.map((v) => (
               <tr key={v}>
                 <td><strong>{v}</strong></td>
                 <td className="muted">{linhasBrutas.filter((l) => l[mapa.faixa] === v).length}</td>
-                <td><select value={deParaFaixa[v] ?? MANTER} onChange={(e) => setDeParaFaixa((d) => ({ ...d, [v]: e.target.value }))} aria-label={`Faixa para ${v}`}>
-                  <option value={MANTER}>Manter "{v}"</option>
-                  {faixasSistema.map((f) => <option key={f} value={f}>{f}</option>)}
+                <td><select value={deParaFaixa[v] ?? ''} onChange={(e) => setDeParaFaixa((d) => ({ ...d, [v]: e.target.value }))} aria-label={`Faixa para ${v}`}>
+                  <option value="" disabled>Escolha a faixa</option>
+                  {faixasSistema.map((f) => <option key={f.nome} value={f.nome}>{f.nome} ({virgula(f.minimo)} a {virgula(f.maximo)})</option>)}
                 </select></td>
               </tr>
             ))}</tbody>
