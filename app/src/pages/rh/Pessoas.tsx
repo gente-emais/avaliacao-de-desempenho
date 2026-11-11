@@ -37,9 +37,10 @@ export default function Pessoas() {
   const input = useRef<HTMLInputElement>(null)
 
   async function carregarBase() {
-    const { data } = await supabase.from('pessoas')
+    const { data, error } = await supabase.from('pessoas')
       .select('id, nome, cpf_mascarado, cargo, area, papel, acesso_assistido, email_ficticio, user_id, perfil:perfis(nome), gestor:pessoas!pessoas_gestor_id_fkey(nome)')
       .eq('ativo', true).order('nome')
+    if (error) setMsg({ t: 'Não foi possível carregar a base: ' + error.message, c: 'erro' })
     setBase((data as unknown as PessoaLista[]) ?? [])
   }
   useEffect(() => { carregarBase() }, [])
@@ -67,10 +68,12 @@ export default function Pessoas() {
   }
 
   async function gravar() {
+    const qtdInativar = previa?.resumo?.inativar ?? 0
+    if (inativar && qtdInativar > 0 && !window.confirm(`Confirma inativar ${qtdInativar} pessoas que não vieram na planilha? Elas saem das próximas rodadas.`)) return
     try {
       const r = await rpc<Previa>('importar_pessoas', { p_linhas: linhas, p_arquivo: arquivo, p_confirmar: true, p_inativar_ausentes: inativar })
-      setMsg({ t: `Base atualizada: ${r.lidas - r.rejeitadas} linhas gravadas, ${r.rejeitadas} com erro ficaram de fora.`, c: 'ok' })
-      setPrevia(null); setLinhas([]); carregarBase()
+      setMsg({ t: `Base atualizada: ${r.lidas - r.rejeitadas} ${r.lidas - r.rejeitadas === 1 ? 'pessoa gravada' : 'pessoas gravadas'}${r.rejeitadas ? `, ${r.rejeitadas} com erro ficaram de fora` : ''}${inativar && qtdInativar ? `, ${qtdInativar} inativadas` : ''}.`, c: 'ok' })
+      setPrevia(null); setLinhas([]); setArquivo(''); setInativar(false); if (input.current) input.current.value = ''; carregarBase()
     } catch (e) { setMsg({ t: (e as Error).message, c: 'erro' }) }
   }
 
