@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase, rpc, type Rodada } from '../../lib/supabase'
+import { supabase, rpc, type Rodada, nomesPorId } from '../../lib/supabase'
 import { baixarCsv, dataHora, nota } from '../../lib/format'
 
 interface Res {
@@ -31,11 +31,14 @@ export default function Resultados() {
   async function carregar() {
     if (!rodadaId) return
     const [{ data: r }, { data: f }, { data: rl }] = await Promise.all([
-      supabase.from('resultados').select('pessoa_id, nota_calculada, nota_final, nota_autoavaliacao, faixa_nome, pessoa:pessoas(nome, area, gestor:pessoas!pessoas_gestor_id_fkey(nome))').eq('rodada_id', rodadaId),
+      supabase.from('resultados').select('pessoa_id, nota_calculada, nota_final, nota_autoavaliacao, faixa_nome, pessoa:pessoas(nome, area, gestor_id)').eq('rodada_id', rodadaId),
       supabase.from('faixas_classificacao').select('nome, minimo, maximo, ordem').eq('rodada_id', rodadaId).order('ordem'),
       supabase.from('rodadas').select('*').eq('id', rodadaId).single(),
     ])
-    setRes(((r as unknown as Res[]) ?? []).sort((a, b) => Number(b.nota_final) - Number(a.nota_final)))
+    const lista = (r as unknown as (Res & { pessoa: { gestor_id: string | null } })[]) ?? []
+    const nomes = await nomesPorId(lista.map((x) => x.pessoa?.gestor_id))
+    setRes(lista.map((x) => ({ ...x, pessoa: x.pessoa && { ...x.pessoa, gestor: x.pessoa.gestor_id && nomes[x.pessoa.gestor_id] ? { nome: nomes[x.pessoa.gestor_id] } : null } }))
+      .sort((a, b) => Number(b.nota_final) - Number(a.nota_final)))
     setFaixas((f as Faixa[]) ?? [])
     if (rl) setRodadas((x) => x.map((y) => (y.id === rodadaId ? (rl as Rodada) : y)))
   }

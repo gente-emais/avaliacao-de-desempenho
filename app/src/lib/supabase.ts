@@ -53,3 +53,12 @@ export async function rpc<T = unknown>(fn: string, args: Record<string, unknown>
   if (error) throw new Error(error.message)
   return data as T
 }
+
+// Nomes de pessoas por id (para mostrar o gestor sem embutir pessoas dentro de pessoas,
+// o que o Supabase recusa por ser ambíguo: gestor e liderados usam a mesma chave).
+export async function nomesPorId(ids: (string | null | undefined)[]): Promise<Record<string, string>> {
+  const unicos = [...new Set(ids.filter(Boolean))] as string[]
+  if (!unicos.length) return {}
+  const { data } = await supabase.from('pessoas').select('id, nome').in('id', unicos)
+  return Object.fromEntries(((data as { id: string; nome: string }[]) ?? []).map((p) => [p.id, p.nome]))
+}

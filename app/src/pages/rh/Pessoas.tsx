@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { supabase, rpc } from '../../lib/supabase'
+import { supabase, rpc, nomesPorId } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 
 interface Linha { linha: number; situacao: string; mensagem: string | null; nome: string; cpf: string }
@@ -38,10 +38,12 @@ export default function Pessoas() {
 
   async function carregarBase() {
     const { data, error } = await supabase.from('pessoas')
-      .select('id, nome, cpf_mascarado, cargo, area, papel, acesso_assistido, email_ficticio, user_id, perfil:perfis(nome), gestor:pessoas!pessoas_gestor_id_fkey(nome)')
+      .select('id, nome, cpf_mascarado, cargo, area, papel, acesso_assistido, email_ficticio, user_id, gestor_id, perfil:perfis(nome)')
       .eq('ativo', true).order('nome')
     if (error) setMsg({ t: 'Não foi possível carregar a base: ' + error.message, c: 'erro' })
-    setBase((data as unknown as PessoaLista[]) ?? [])
+    const lista = (data as unknown as (PessoaLista & { gestor_id: string | null })[]) ?? []
+    const nomes = await nomesPorId(lista.map((p) => p.gestor_id))
+    setBase(lista.map((p) => ({ ...p, gestor: p.gestor_id && nomes[p.gestor_id] ? { nome: nomes[p.gestor_id] } : null })))
   }
   useEffect(() => { carregarBase() }, [])
 
