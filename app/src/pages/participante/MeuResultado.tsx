@@ -6,11 +6,14 @@ import { useAuth } from '../../lib/auth'
 interface Res { rodada_id: string; nota_final: number | null; nota_autoavaliacao: number | null; faixa_nome: string | null; rodada: { nome: string; ano: number } }
 interface Faixa { nome: string; minimo: number; maximo: number; ordem: number }
 interface BlocoMedia { nome: string; gestor: number | null; auto: number | null }
-interface Lider { pergunta: string; media: number; respondentes: number }
+interface Resp { rotulo: string | null; texto: string | null; evidencia: string | null; valor: number | null }
+interface PerguntaDet { id: number; texto: string; tipo: string; ordem: number; auto?: Resp; gestor?: Resp }
+interface BlocoDet { id: number; nome: string; tipo: string; ordem: number; perguntas: PerguntaDet[]; mediaGestor: number | null; mediaAuto: number | null }
+interface LiderDet { respondentes: number; perguntas: { texto: string; tipo: string; opcoes: { rotulo: string; valor: number; n: number }[]; textos: string[] }[] }
 
 const CORES = ['#f3c9b9', '#dbe4f0', '#4ed8b0', '#1e756a']
 const CORES_TEXTO = ['#9a3d1d', '#2f4858', '#14604f', '#ffffff']
-const CONCORDANCIA = ['Estou seguro que não', 'Na maioria das vezes, não', 'Na maioria das vezes, sim', 'Estou seguro que sim']
+const COR_CONC: Record<number, string> = { 4: '#1e756a', 3: '#4ed8b0', 2: '#fadb19', 1: '#ea7b5e' }
 
 export default function MeuResultado() {
   const { eu, temEquipe } = useAuth()
@@ -18,8 +21,8 @@ export default function MeuResultado() {
   const [sel, setSel] = useState<string>('')
   const [faixas, setFaixas] = useState<Faixa[]>([])
   const [blocos, setBlocos] = useState<BlocoMedia[]>([])
-  const [textos, setTextos] = useState<{ fortes?: string; desenvolver?: string }>({})
-  const [lider, setLider] = useState<Lider[] | null>(null)
+  const [det, setDet] = useState<BlocoDet[]>([])
+  const [lider, setLider] = useState<LiderDet | null>(null)
 
   useEffect(() => {
     if (!eu) return
@@ -42,23 +45,42 @@ export default function MeuResultado() {
       setFaixas((fx as Faixa[]) ?? [])
       const av = (avs as { id: string; grupo: string; formulario_id: number }[]) ?? []
       const ids = av.map((a) => a.id)
-      const { data: rs } = await supabase.from('respostas').select('avaliacao_id, valor, texto, pergunta:perguntas(tipo, ordem, bloco:blocos(nome, tipo))').in('avaliacao_id', ids)
-      type R = { avaliacao_id: string; valor: number | null; texto: string | null; pergunta: { tipo: string; ordem: number; bloco: { nome: string; tipo: string } } }
+      const formGestor = av.find((a) => a.grupo === 'gestor')?.formulario_id ?? av[0]?.formulario_id
+      const [{ data: rs }, { data: ops }, { data: fbs }] = await Promise.all([
+        supabase.from('respostas').select('avaliacao_id, valor, opcao, texto, evidencia, pergunta:perguntas(id, texto, tipo, ordem, escala_id, bloco:blocos(id, nome, tipo))').in('avaliacao_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']),
+        supabase.from('escala_opcoes').select('escala_id, valor, rotulo'),
+        supabase.from('formulario_blocos').select('bloco_id, ordem').eq('formulario_id', formGestor ?? 0),
+      ])
+      type R = { avaliacao_id: string; valor: number | null; opcao: string | null; texto: string | null; evidencia: string | null
+        pergunta: { id: number; texto: string; tipo: string; ordem: number; escala_id: number | null; bloco: { id: number; nome: string; tipo: string } } }
       const linhas = (rs as unknown as R[]) ?? []
+      const opcoes = (ops as { escala_id: number; valor: number; rotulo: string }[]) ?? []
+      const ordemBloco = new Map(((fbs as { bloco_id: number; ordem: number }[]) ?? []).map((f) => [f.bloco_id, f.ordem]))
       const grupoDe = (id: string) => av.find((a) => a.id === id)?.grupo
-      const acc: Record<string, { g: number[]; a: number[] }> = {}
-      linhas.filter((r) => r.pergunta.bloco.tipo === 'competencia' && r.valor != null).forEach((r) => {
-        const nome = r.pergunta.bloco.nome.replace(/ - .*$/, '')
-        acc[nome] ||= { g: [], a: [] }
-        ;(grupoDe(r.avaliacao_id) === 'gestor' ? acc[nome].g : acc[nome].a).push(Number(r.valor))
+      const media = (v: number[]) => (v.length ? v.reduce((s2, x) => s2 + x, 0) / v.length : null)
+      const blocosMap = new Map<number, BlocoDet>()
+      // só competências e perguntas de potencial (o pré-work fica fora da devolutiva)
+      linhas.filter((x) => ['competencia', 'potencial'].includes(x.pergunta.bloco.tipo)).forEach((x) => {
+        const b = x.pergunta.bloco
+        if (!blocosMap.has(b.id)) blocosMap.set(b.id, { id: b.id, nome: b.nome, tipo: b.tipo, ordem: ordemBloco.get(b.id) ?? 999, perguntas: [], mediaGestor: null, mediaAuto: null })
+        const bl = blocosMap.get(b.id)!
+        let pg = bl.perguntas.find((q) => q.id === x.pergunta.id)
+        if (!pg) { pg = { id: x.pergunta.id, texto: x.pergunta.texto, tipo: x.pergunta.tipo, ordem: x.pergunta.ordem }; bl.perguntas.push(pg) }
+        const rot = x.valor != null ? opcoes.find((o) => o.escala_id === x.pergunta.escala_id && Number(o.valor) === Number(x.valor))?.rotulo ?? null : x.opcao
+        const resp: Resp = { rotulo: rot, texto: x.texto, evidencia: x.evidencia, valor: x.valor == null ? null : Number(x.valor) }
+        if (grupoDe(x.avaliacao_id) === 'gestor') pg.gestor = resp; else pg.auto = resp
       })
-      const media = (v: number[]) => (v.length ? v.reduce((s, x) => s + x, 0) / v.length : null)
-      setBlocos(Object.entries(acc).map(([nome, v]) => ({ nome, gestor: media(v.g), auto: media(v.a) })))
-      const pot = linhas.filter((r) => r.pergunta.bloco.tipo === 'potencial' && grupoDe(r.avaliacao_id) === 'gestor').sort((x, y) => x.pergunta.ordem - y.pergunta.ordem)
-      setTextos({ fortes: pot[0]?.texto ?? undefined, desenvolver: pot[1]?.texto ?? undefined })
+      const lista2 = [...blocosMap.values()].sort((a, b) => a.ordem - b.ordem)
+      lista2.forEach((b) => {
+        b.perguntas.sort((a, c) => a.ordem - c.ordem)
+        b.mediaGestor = media(b.perguntas.map((q) => q.gestor?.valor).filter((v): v is number => v != null))
+        b.mediaAuto = media(b.perguntas.map((q) => q.auto?.valor).filter((v): v is number => v != null))
+      })
+      setDet(lista2)
+      setBlocos(lista2.filter((b) => b.tipo === 'competencia').map((b) => ({ nome: b.nome.replace(/ - .*$/, ''), gestor: b.mediaGestor, auto: b.mediaAuto })))
       if (temEquipe) {
-        try { setLider(await rpc<Lider[]>('resultado_como_lider', { p_rodada: sel, p_gestor: null })) } catch { setLider(null) }
-      }
+        try { setLider(await rpc<LiderDet>('resultado_como_lider_detalhe', { p_rodada: sel, p_gestor: null })) } catch { setLider(null) }
+      } else setLider(null)
     })()
   }, [sel, eu?.id, temEquipe])
 
@@ -152,53 +174,104 @@ export default function MeuResultado() {
         </section>
       )}
 
-      {blocos.length === 0 && <p className="muted">Nesta rodada não há detalhe por competência (resultado trazido do sistema anterior).</p>}
-      {blocos.length > 0 && <section className="card">
-        <div className="linha entre">
-          <h2>Por competência</h2>
-          <span className="muted">O que o seu gestor avaliou e o que você se deu</span>
-        </div>
-        <div className="tabela-box">
-          <table style={{ minWidth: 520 }}>
-            <thead><tr><th>Competência</th><th>Avaliação do gestor</th><th>Sua autoavaliação</th></tr></thead>
-            <tbody>
-              {blocos.map((b) => {
-                const g = faixaDe(b.gestor)
-                const a = faixaDe(b.auto)
-                return (
-                  <tr key={b.nome}>
-                    <td><strong>{b.nome}</strong></td>
-                    <td>{g ? <Selo i={g.i} nome={g.nome} /> : '—'}</td>
-                    <td>{a ? <Selo i={a.i} nome={a.nome} /> : <span className="muted">Não se aplica</span>}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>}
+      {det.length === 0 && <p className="muted">Nesta rodada não há detalhe por competência (resultado trazido do sistema anterior).</p>}
 
-      {(textos.fortes || textos.desenvolver) && (
-        <div className="grade">
-          {textos.fortes && <section className="card"><h2 style={{ color: 'var(--ok)' }}>Pontos fortes</h2><p style={{ whiteSpace: 'pre-line' }}>{textos.fortes}</p></section>}
-          {textos.desenvolver && <section className="card"><h2 style={{ color: 'var(--pend)' }}>Pontos a desenvolver</h2><p style={{ whiteSpace: 'pre-line' }}>{textos.desenvolver}</p></section>}
-        </div>
+      {blocos.length > 0 && (
+        <section className="card">
+          <div className="linha entre"><h2>Resumo por competência</h2><span className="muted">O que o seu gestor avaliou e o que você se deu</span></div>
+          <div className="tabela-box"><table style={{ minWidth: 520 }}>
+            <thead><tr><th>Competência</th><th>Avaliação do gestor</th><th>Sua autoavaliação</th></tr></thead>
+            <tbody>{blocos.map((b) => {
+              const g = faixaDe(b.gestor); const a = faixaDe(b.auto)
+              return (
+                <tr key={b.nome}>
+                  <td><a href={`#bloco-${b.nome}`}><strong>{b.nome}</strong></a></td>
+                  <td>{g ? <Selo i={g.i} nome={g.nome} /> : '—'}</td>
+                  <td>{a ? <Selo i={a.i} nome={a.nome} /> : <span className="muted">Não se aplica</span>}</td>
+                </tr>
+              )
+            })}</tbody>
+          </table></div>
+        </section>
       )}
 
-      {lider && lider.length > 0 && (
-        <section className="card">
-          <h2>Como seu time te avaliou como líder</h2>
-          <p className="muted">Resposta predominante do time, sem identificar quem respondeu (mínimo de 3 respostas).</p>
-          {lider.map((l) => (
-            <div key={l.pergunta} className="linha entre" style={{ borderTop: '1px solid #e8eef6', paddingTop: 10 }}>
-              <span style={{ flex: '1 1 300px' }}>{l.pergunta}</span>
-              <span className="pill neutro">{CONCORDANCIA[Math.min(3, Math.max(0, Math.round(Number(l.media)) - 1))]}</span>
+      {det.map((b) => {
+        const g = faixaDe(b.mediaGestor); const a = faixaDe(b.mediaAuto)
+        const temAuto = b.perguntas.some((q) => q.auto)
+        return (
+          <section className="card devolutiva" key={b.id} id={`bloco-${b.nome.replace(/ - .*$/, '')}`}>
+            <div className="devolutiva-topo">
+              <h2>{b.tipo === 'potencial' ? 'Perguntas de potencial' : b.nome}</h2>
+              {b.tipo === 'competencia' && (
+                <div className="linha">
+                  <span className="muted">Gestor</span>{g ? <Selo i={g.i} nome={g.nome} /> : '—'}
+                  {temAuto && <><span className="muted" style={{ marginLeft: 8 }}>Sua autoavaliação</span>{a ? <Selo i={a.i} nome={a.nome} /> : '—'}</>}
+                </div>
+              )}
             </div>
-          ))}
+            {b.perguntas.map((q) => (
+              <div key={q.id} className="pergunta-det">
+                <h3>{q.texto}</h3>
+                {q.tipo === 'escala' && (
+                  <div className="respostas-escala">
+                    {q.auto && <div><span className="muted">Autoavaliação</span><SeloRotulo rotulo={q.auto.rotulo} faixas={faixas} /></div>}
+                    {q.gestor && <div><span className="muted">Gestor</span><SeloRotulo rotulo={q.gestor.rotulo} faixas={faixas} /></div>}
+                  </div>
+                )}
+                {(q.tipo !== 'escala' || q.auto?.evidencia || q.gestor?.evidencia) && (
+                  <div className="comentarios">
+                    {q.tipo === 'escala' && <strong className="muted">Evidências</strong>}
+                    {(q.auto?.evidencia || (q.tipo !== 'escala' && (q.auto?.texto || q.auto?.rotulo))) && (
+                      <div><b>Autoavaliação</b><p>{q.tipo === 'escala' ? q.auto?.evidencia : q.auto?.texto ?? q.auto?.rotulo}</p></div>
+                    )}
+                    {(q.gestor?.evidencia || (q.tipo !== 'escala' && (q.gestor?.texto || q.gestor?.rotulo))) && (
+                      <div><b>Gestor</b><p>{q.tipo === 'escala' ? q.gestor?.evidencia : q.gestor?.texto ?? q.gestor?.rotulo}</p></div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </section>
+        )
+      })}
+
+      {temEquipe && lider && (
+        <section className="card devolutiva">
+          <div className="devolutiva-topo"><h2>Como seu time te avaliou como gestor</h2><span className="muted">{lider.respondentes} {lider.respondentes === 1 ? 'resposta' : 'respostas'} · sem identificar quem respondeu</span></div>
+          {lider.perguntas.length === 0 && <p className="muted">O resultado aparece com 3 respostas ou mais, para preservar o anonimato.</p>}
+          {lider.perguntas.map((q, k) => {
+            const tot = q.opcoes.reduce((s2, o) => s2 + o.n, 0)
+            return (
+              <div key={k} className="pergunta-det">
+                <h3>{q.texto}</h3>
+                {q.tipo === 'escala' && tot > 0 && (
+                  <>
+                    <div className="pilha-lider">
+                      {q.opcoes.filter((o) => o.n > 0).map((o) => (
+                        <span key={o.rotulo} style={{ flex: o.n, background: COR_CONC[o.valor] ?? '#dbe4f0', color: o.valor >= 4 ? '#fff' : '#130c0e' }} title={o.rotulo}>
+                          {Math.round((o.n / tot) * 100)}%
+                        </span>
+                      ))}
+                    </div>
+                    <div className="legenda">{q.opcoes.map((o) => <span key={o.rotulo}><i style={{ background: COR_CONC[o.valor] ?? '#dbe4f0' }} />{o.rotulo} ({o.n})</span>)}</div>
+                  </>
+                )}
+                {q.textos.length > 0 && (
+                  <div className="comentarios"><b>Time</b>{q.textos.map((t, i) => <p key={i}>• {t}</p>)}</div>
+                )}
+              </div>
+            )
+          })}
         </section>
       )}
     </>
   )
+}
+
+function SeloRotulo({ rotulo, faixas }: { rotulo: string | null; faixas: Faixa[] }) {
+  if (!rotulo) return <span className="muted">—</span>
+  const i = faixas.findIndex((f) => f.nome === rotulo)
+  return i >= 0 ? <Selo i={i} nome={rotulo} /> : <span className="pill neutro">{rotulo}</span>
 }
 
 function Selo({ i, nome }: { i: number; nome: string }) {
