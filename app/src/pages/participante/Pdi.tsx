@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import AbasMeuEspaco from '../../components/AbasMeuEspaco'
 import { supabase, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data } from '../../lib/format'
@@ -85,6 +86,7 @@ export default function Pdi() {
           <button className="primario" onClick={() => setNovo(!novo)}>+ Novo objetivo</button>
         </div>
       </div>
+      <AbasMeuEspaco />
 
       <div className="grade" style={{ ['--min' as string]: '180px' }}>
         <div className="card"><span className="muted">Objetivos</span><span className="kpi">{objs.length}</span></div>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import AbasMeuEspaco from '../../components/AbasMeuEspaco'
+import MinhasRodadas from './MinhasRodadas'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { STATUS, dataHora, tituloTarefa, umAceite } from '../../lib/format'
@@ -30,6 +32,8 @@ export default function Inicio() {
   const [aceites, setAceites] = useState<Tarefa[]>([])
   const [carregando, setCarregando] = useState(true)
   const [msg, setMsg] = useState('')
+  const [params] = useSearchParams()
+  const aba = params.get('aba')
 
   async function carregar() {
     if (!eu) return
@@ -56,6 +60,8 @@ export default function Inicio() {
       <div className="cabecalho">
         <div><div className="migalha">Meu espaço</div><h1>Olá, {eu?.nome.split(' ')[0]}</h1></div>
       </div>
+      <AbasMeuEspaco />
+      {aba === 'contratacao' || aba === 'avaliativo' || aba === 'feedback' ? <MinhasRodadas tipo={aba} /> : <>
       {msg && <div className="aviso info">{msg}</div>}
 
       <section className="card card-escuro">
@@ -100,6 +106,7 @@ export default function Inicio() {
         </section>
       )}
       <p className="muted">Atualizado em {dataHora(new Date().toISOString())}</p>
+      </>}
     </>
   )
 }

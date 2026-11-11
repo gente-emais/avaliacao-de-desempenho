@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import AbasMeuEspaco from '../../components/AbasMeuEspaco'
 import { supabase, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data } from '../../lib/format'
@@ -75,6 +76,7 @@ export default function OneAOne() {
         <div><div className="migalha">Meu espaço</div><h1>One a One</h1></div>
         {temEquipe && <button className="primario" onClick={() => setNovo(!novo)}>+ Novo encontro</button>}
       </div>
+      <AbasMeuEspaco />
 
       {novo && (
         <form className="card" onSubmit={criar}>
