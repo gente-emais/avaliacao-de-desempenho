@@ -36,12 +36,36 @@ export default function Rodadas() {
   const [ano, setAno] = useState(new Date().getFullYear())
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
+  const [mostrarNova, setMostrarNova] = useState(false)
+  const [numeros, setNumeros] = useState<Record<string, { total: number; feitas: number; part: number; faixas: Record<string, number> }>>({})
+  const [faixasPadrao, setFaixasPadrao] = useState<string[]>([])
   const [contagem, setContagem] = useState<{ total: number; porPerfil: Record<string, number>; semGestor: number } | null>(null)
 
   async function carregar() {
     const { data } = await supabase.from('rodadas').select('*, etapas:rodada_etapas(*)').order('criado_em', { ascending: false })
-    setLista((data as RodadaCompleta[]) ?? [])
+    const l = (data as RodadaCompleta[]) ?? []
+    setLista(l)
+    const ids = l.filter((r) => r.status !== 'historica' && r.status !== 'rascunho').map((r) => r.id)
+    const [{ data: av }, { data: rp }, { data: rs }, { data: fx }] = await Promise.all([
+      ids.length ? supabase.from('avaliacoes').select('rodada_id, status, grupo, aceite:aceites(aceito_em)').in('rodada_id', ids).neq('status', 'cancelada') : Promise.resolve({ data: [] }),
+      ids.length ? supabase.from('rodada_participantes').select('rodada_id').in('rodada_id', ids) : Promise.resolve({ data: [] }),
+      supabase.from('resultados').select('rodada_id, faixa_nome'),
+      supabase.from('faixas_classificacao').select('nome').is('rodada_id', null).order('ordem'),
+    ])
+    setFaixasPadrao(((fx as { nome: string }[]) ?? []).map((f) => f.nome))
+    const n: Record<string, { total: number; feitas: number; part: number; faixas: Record<string, number> }> = {}
+    const ini = (id: string) => (n[id] ||= { total: 0, feitas: 0, part: 0, faixas: {} })
+    const tipoDe = Object.fromEntries(l.map((r) => [r.id, r.tipo]))
+    ;((av as { rodada_id: string; status: string; aceite: unknown }[]) ?? []).forEach((a) => {
+      const x = ini(a.rodada_id); x.total++
+      const aceite = Array.isArray(a.aceite) ? a.aceite.length > 0 : !!a.aceite
+      if (tipoDe[a.rodada_id] === 'contratacao' ? a.status === 'concluida' && aceite : a.status === 'concluida' || a.status === 'enviada') x.feitas++
+    })
+    ;((rp as { rodada_id: string }[]) ?? []).forEach((p) => { ini(p.rodada_id).part++ })
+    ;((rs as { rodada_id: string; faixa_nome: string | null }[]) ?? []).forEach((r) => { const x = ini(r.rodada_id); const f = r.faixa_nome ?? '—'; x.faixas[f] = (x.faixas[f] ?? 0) + 1 })
+    setNumeros(n)
   }
+
   useEffect(() => {
     carregar()
     supabase.from('pessoas').select('gestor_id, perfil:perfis(nome)').eq('ativo', true).not('perfil_id', 'is', null).then(({ data }) => {
@@ -111,10 +135,13 @@ export default function Rodadas() {
 
   return (
     <>
-      <div className="cabecalho"><div><div className="migalha">Visão RH</div><h1>Rodadas</h1></div></div>
+      <div className="cabecalho">
+        <div><div className="migalha">Visão RH</div><h1>Rodadas e resultados</h1></div>
+        <button className="primario" onClick={() => setMostrarNova((v) => !v)} aria-expanded={mostrarNova}>{mostrarNova ? 'Fechar' : '+ Nova rodada'}</button>
+      </div>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
 
-      <section className="card">
+      {mostrarNova && <section className="card">
         <h2>Nova rodada</h2>
         <div role="radiogroup" className="grade" style={{ ['--min' as string]: '220px' }}>
           {(Object.keys(TIPO_RODADA) as TipoRodada[]).map((t) => (
@@ -139,32 +166,57 @@ export default function Rodadas() {
           <button className="primario" disabled={salvando} onClick={() => salvar(true)}>{salvando ? 'Abrindo…' : 'Abrir rodada e avisar'}</button>
           <button disabled={salvando} onClick={() => salvar(false)}>Salvar rascunho</button>
         </div>
-      </section>
+      </section>}
 
-      <section className="card">
-        <h2>Rodadas</h2>
-        <div className="tabela-box"><table>
-          <thead><tr><th>Rodada</th><th>Tipo</th><th>Situação</th><th>Etapa atual</th><th>Aberta em</th><th></th></tr></thead>
-          <tbody>{lista.map((r) => {
-            const atual = r.etapas.find((e) => e.status === 'aberta')
-            return (
-              <tr key={r.id}>
-                <td><strong>{r.nome}</strong></td><td>{TIPO_RODADA[r.tipo]}</td>
-                <td><span className={`pill ${STATUS_RODADA[r.status][1]}`}>{STATUS_RODADA[r.status][0]}</span></td>
-                <td>{atual ? atual.nome : '—'}</td><td>{data(r.foto_em)}</td>
-                <td className="linha" style={{ justifyContent: 'flex-end' }}>
-                  {r.status === 'rascunho' && <button className="primario pequeno" onClick={() => abrirRodada(r.id)}>Abrir</button>}
-                  {r.status === 'aberta' && <>
-                    <Link className="botao pequeno" to={`/rh/acompanhamento?rodada=${r.id}`}>Pendências</Link>
-                    <button className="pequeno" onClick={() => avancarEtapa(r)}>{r.etapas.findIndex((e) => e.status === 'aberta') === r.etapas.length - 1 ? 'Encerrar rodada' : 'Fechar etapa'}</button>
-                  </>}
-                  {r.tipo === 'avaliativo' && r.status !== 'rascunho' && <Link className="botao pequeno" to={`/rh/resultados?rodada=${r.id}`}>Resultados</Link>}
-                </td>
-              </tr>
-            )
-          })}</tbody>
-        </table></div>
-      </section>
+      {[...new Set(lista.map((r) => r.ano))].sort((a, b) => b - a).map((anoG) => (
+        <section key={anoG} className="card">
+          <div className="ano-titulo">{anoG}</div>
+          <div className="grade" style={{ ['--min' as string]: '300px' }}>
+            {lista.filter((r) => r.ano === anoG).sort((a, b) => Number(b.status === 'aberta') - Number(a.status === 'aberta')).map((r) => {
+              const atual = r.etapas.find((e) => e.status === 'aberta')
+              const ord = [...r.etapas].sort((a, b) => a.ordem - b.ordem)
+              const nn = numeros[r.id]
+              const pct = nn?.total ? Math.round((nn.feitas / nn.total) * 100) : null
+              const totRes = nn ? Object.values(nn.faixas).reduce((s2, x) => s2 + x, 0) : 0
+              return (
+                <article key={r.id} className="rodada-card">
+                  <div className="topo">
+                    <div><span className="muted">{TIPO_RODADA[r.tipo]}</span><h3>{r.nome}</h3></div>
+                    <span className={`pill ${STATUS_RODADA[r.status][1]}`}>{STATUS_RODADA[r.status][0]}</span>
+                  </div>
+                  {r.status === 'aberta' && atual && <span className="muted">Etapa {ord.indexOf(atual) + 1} de {ord.length}: <strong>{atual.nome}</strong></span>}
+                  {r.status !== 'historica' && r.status !== 'rascunho' && nn && (
+                    <>
+                      <div className="linha entre" style={{ fontSize: 13 }}>
+                        <span>{nn.part} participantes</span>
+                        <span><strong>{pct ?? 0}%</strong> {r.tipo === 'contratacao' ? 'com aceite' : 'concluído'} ({nn.feitas}/{nn.total})</span>
+                      </div>
+                      <div className="barra"><i className={pct == null ? 'n' : pct >= 80 ? 'v' : pct >= 50 ? 'a' : 'l'} style={{ width: `${pct ?? 0}%` }} /></div>
+                    </>
+                  )}
+                  {r.tipo === 'avaliativo' && totRes > 0 && (
+                    <>
+                      <div className="mini-faixas" aria-label="Distribuição das faixas">
+                        {faixasPadrao.map((f, i) => (nn!.faixas[f] ?? 0) > 0 && (
+                          <span key={f} title={`${f}: ${nn!.faixas[f]}`} style={{ flex: nn!.faixas[f], background: ['#ea7b5e', '#ffefab', '#4ed8b0', '#1e756a'][i], color: i === 3 ? '#fff' : '#130c0e' }}>{nn!.faixas[f]}</span>
+                        ))}
+                      </div>
+                      <span className="muted">{totRes} resultados · {r.resultado_liberado_em ? `devolutiva liberada em ${data(r.resultado_liberado_em)}` : 'devolutiva ainda não liberada'}</span>
+                    </>
+                  )}
+                  <div className="acoes">
+                    {r.status === 'rascunho' && <button className="primario pequeno" onClick={() => abrirRodada(r.id)}>Abrir rodada</button>}
+                    {r.status !== 'rascunho' && r.status !== 'historica' && <Link className="botao pequeno" to={`/rh/acompanhamento?rodada=${r.id}`}>Status</Link>}
+                    {r.tipo === 'avaliativo' && r.status !== 'rascunho' && <Link className="botao pequeno" to={`/rh/resultados?rodada=${r.id}`}>Resultados</Link>}
+                    {r.status === 'aberta' && <button className="pequeno" onClick={() => avancarEtapa(r)}>{r.etapas.findIndex((e) => e.status === 'aberta') === r.etapas.length - 1 ? 'Encerrar rodada' : 'Fechar etapa'}</button>}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+      {lista.length === 0 && <div className="card"><p className="muted">Nenhuma rodada ainda. Clique em "+ Nova rodada".</p></div>}
     </>
   )
 }

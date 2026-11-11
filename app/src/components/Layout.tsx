@@ -14,20 +14,17 @@ export default function Layout() {
           <nav className="nav" aria-label="Visão RH">
             <span className="nav-titulo">Visão RH</span>
             <NavLink to="/rh" end>Painel estratégico</NavLink>
-            <NavLink to="/rh/pessoas">Base de colaboradores</NavLink>
-            <NavLink to="/rh/rodadas">Rodadas</NavLink>
+            <NavLink to="/rh/rodadas">Rodadas e resultados</NavLink>
             <NavLink to="/rh/acompanhamento">Status das avaliações</NavLink>
-            <NavLink to="/rh/resultados">Resultados</NavLink>
+            <NavLink to="/rh/pessoas">Base de colaboradores</NavLink>
             {ehAdmin && <NavLink to="/rh/configuracao">Configuração</NavLink>}
           </nav>
         )}
         <nav className="nav" aria-label="Meu espaço">
           <span className="nav-titulo">Meu espaço</span>
-          <NavLink to="/" end>O que fazer agora</NavLink>
+          <NavLink to="/" end>Início</NavLink>
           {temAutoavaliacao && <NavLink to="/autoavaliacao">Minha autoavaliação</NavLink>}
           {temEquipe && <NavLink to="/equipe">Minha equipe</NavLink>}
-          <NavLink to="/pdi">PDI</NavLink>
-          <NavLink to="/one-a-one">One a One</NavLink>
           <NavLink to="/resultado">Meu resultado</NavLink>
         </nav>
         <div className="sidebar-rodape">

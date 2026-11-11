@@ -4,6 +4,7 @@ import { supabase, nomesPorId, type Rodada, type Grupo, type StatusAvaliacao } f
 import { useAuth } from '../../lib/auth'
 import { STATUS, baixarCsv, umAceite } from '../../lib/format'
 import AvaliacoesPessoa from '../../components/AvaliacoesPessoa'
+import SeletorRodada from '../../components/SeletorRodada'
 
 // Status das avaliações (Visão RH): uma linha por participante da rodada; clique abre quem avalia quem.
 interface Part { pessoa_id: string; nome: string; area: string | null; cargo: string | null; perfil_id: number | null; gestor_id: string | null; gestor_secundario_id: string | null; acesso_assistido: boolean }
@@ -106,14 +107,14 @@ export default function Acompanhamento() {
         <div><div className="migalha">Visão RH</div><h1>Status das avaliações</h1>
           {rodada && <span className="muted">{parts.length} participantes · {comPend} com pendência</span>}</div>
         <div className="linha">
-          <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value, situacao })} aria-label="Rodada">
-            {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
-          </select>
           <button onClick={exportar}>Exportar</button>
           {ehAdmin && <button className="primario" onClick={() => lembrar(filtradas)}>Enviar lembrete aos pendentes</button>}
         </div>
       </div>
       {msg && <div className="aviso info">{msg}</div>}
+      <section className="card" style={{ padding: '16px 20px' }}>
+        <SeletorRodada rodadas={rodadas} valor={rodadaId} onChange={(id) => setParams({ rodada: id, situacao })} />
+      </section>
 
       <section className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', padding: '16px 20px' }}>
         <label className="campo" style={{ flex: '2 1 240px', fontWeight: 400 }}>Buscar<input type="search" placeholder="Nome, e-mail ou cargo" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>

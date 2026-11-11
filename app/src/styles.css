@@ -219,3 +219,16 @@ tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: #f6f9ff; }
 .acoes-menu > div button:hover { background: #f1f7f5; }
 .kpi-filtro { min-height: 0; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--borda); background: #fff; flex-direction: column; align-items: flex-start; gap: 2px; font-weight: 400; text-align: left; }
 .kpi-filtro b { font-size: 26px; color: var(--texto); } .kpi-filtro[aria-pressed="true"] { border-color: var(--verde-escuro); box-shadow: inset 0 0 0 1px var(--verde-escuro); }
+
+/* Seletor de rodada e hub de rodadas */
+.seletor-rodada { display: flex; flex-direction: column; gap: 10px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--gelo); padding: 4px; border-radius: 12px; align-self: flex-start; }
+.seg button { min-height: 36px; border: 0; background: transparent; font-size: 13px; }
+.seg button[aria-selected="true"] { background: #fff; color: var(--texto); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.rodada-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--borda); border-radius: 14px; padding: 16px 18px; background: #fff; }
+.rodada-card .topo { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.rodada-card h3 { font-size: 16px; }
+.rodada-card .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.mini-faixas { display: flex; gap: 2px; height: 18px; border-radius: 4px; overflow: hidden; }
+.mini-faixas span { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.ano-titulo { font-size: 20px; font-weight: 800; color: var(--cinza-verde); margin-top: 6px; }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import SeletorRodada from '../../components/SeletorRodada'
 import { supabase, rpc, type Rodada, nomesPorId } from '../../lib/supabase'
 import { baixarCsv, dataHora, nota } from '../../lib/format'
 
@@ -73,15 +74,15 @@ export default function Resultados() {
       <div className="cabecalho">
         <div><div className="migalha">Visão RH</div><h1>Resultados das rodadas</h1></div>
         <div className="linha">
-          <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value })} aria-label="Rodada">
-            {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}{r.somente_leitura ? ' (histórico)' : ` · ${r.status === 'aberta' ? 'aberta' : 'encerrada'}${r.resultado_liberado_em ? ' · liberada' : ''}`}</option>)}
-          </select>
           {!rodada?.somente_leitura && <button onClick={() => acao('calcular_resultados')}>Recalcular notas</button>}
           {!rodada?.somente_leitura && !rodada?.resultado_liberado_em && <button className="primario" onClick={() => acao('liberar_resultados')}>Liberar devolutivas</button>}
           <button onClick={exportar}>Exportar planilha</button>
         </div>
       </div>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
+      <section className="card" style={{ padding: '16px 20px' }}>
+        <SeletorRodada rodadas={rodadas} valor={rodadaId} onChange={(id) => setParams({ rodada: id })} tipos={['avaliativo']} />
+      </section>
       {rodada?.somente_leitura && <div className="aviso neutro">Rodada histórica migrada da Mindsight: somente leitura, com a escala e as faixas originais.</div>}
       {rodada?.resultado_liberado_em && <div className="aviso ok">Devolutivas liberadas em {dataHora(rodada.resultado_liberado_em)}.</div>}
 
