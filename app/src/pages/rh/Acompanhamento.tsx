@@ -1,129 +1,149 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { supabase, rpc, type Rodada, type StatusAvaliacao } from '../../lib/supabase'
-import { STATUS, baixarCsv } from '../../lib/format'
+import { supabase, nomesPorId, type Rodada, type Grupo, type StatusAvaliacao } from '../../lib/supabase'
+import { useAuth } from '../../lib/auth'
+import { STATUS, baixarCsv, umAceite } from '../../lib/format'
+import AvaliacoesPessoa from '../../components/AvaliacoesPessoa'
 
-interface Linha {
-  pessoa_id: string; nome: string; cargo: string | null; area: string | null; perfil: string | null; gestor: string | null
-  acesso_assistido: boolean; gestor_status: StatusAvaliacao | null; auto_status: StatusAvaliacao | null
-  lider_status: StatusAvaliacao | null; pares_pendentes: number; pendencias: number
-}
+// Status das avaliações (Visão RH): uma linha por participante da rodada; clique abre quem avalia quem.
+interface Part { pessoa_id: string; nome: string; area: string | null; cargo: string | null; perfil_id: number | null; gestor_id: string | null; gestor_secundario_id: string | null; acesso_assistido: boolean }
+interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; aceite: { aceito_em: string } | { aceito_em: string }[] | null }
 
-const SITUACOES: Record<string, string> = {
-  p: 'Só com pendência', t: 'Todas', pendente: 'Com avaliação pendente', enviada: 'Aguardando revisão', concluida: 'Com avaliação concluída',
-  'g:concluida': 'Gestor: concluída', 'g:em_andamento': 'Gestor: em andamento', 'g:pendente': 'Gestor: não iniciada', 'g:enviada': 'Gestor: aguardando revisão',
-}
-function passa(l: Linha, s: string) {
-  const todos = [l.gestor_status, l.auto_status, l.lider_status]
-  if (s === 't') return true
-  if (s === 'pendente') return todos.some((x) => x === 'pendente' || x === 'em_andamento') || l.pares_pendentes > 0
-  if (s === 'enviada' || s === 'concluida') return todos.includes(s)
-  if (s.startsWith('g:')) return l.gestor_status === s.slice(2)
-  return l.pendencias > 0
-}
-
-function Status({ s }: { s: StatusAvaliacao | null }) {
-  if (!s) return <span className="pill neutro">Não se aplica</span>
-  return <span className={`pill ${STATUS[s].classe}`}>{STATUS[s].rotulo}</span>
-}
+const normal = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export default function Acompanhamento() {
+  const { ehAdmin } = useAuth()
   const [params, setParams] = useSearchParams()
   const [rodadas, setRodadas] = useState<Rodada[]>([])
-  const [linhas, setLinhas] = useState<Linha[]>([])
+  const [parts, setParts] = useState<Part[]>([])
+  const [avs, setAvs] = useState<Av[]>([])
+  const [nomes, setNomes] = useState<Record<string, string>>({})
+  const [emails, setEmails] = useState<Record<string, string>>({})
+  const [perfis, setPerfis] = useState<Record<number, string>>({})
   const [busca, setBusca] = useState('')
   const [gestor, setGestor] = useState('')
   const [area, setArea] = useState('')
+  const [perfil, setPerfil] = useState('')
   const [msg, setMsg] = useState('')
   const rodadaId = params.get('rodada') ?? ''
+  const pessoaSel = params.get('pessoa')
   const situacao = params.get('situacao') ?? 'p'
-  const mudar = (k: string, v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set(k, v); return n })
+  const mudar = (k: string, v: string | null) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(k, v); else n.delete(k); return n })
+
   useEffect(() => {
-    supabase.from('rodadas').select('*').in('status', ['aberta', 'encerrada']).order('criado_em', { ascending: false }).then(({ data }) => {
+    supabase.from('perfis').select('id, nome').then(({ data }) => setPerfis(Object.fromEntries(((data as { id: number; nome: string }[]) ?? []).map((x) => [x.id, x.nome]))))
+    supabase.from('rodadas').select('*').in('status', ['aberta', 'encerrada']).order('criado_em', { ascending: false }).then(async ({ data }) => {
       const l = (data as Rodada[]) ?? []
       setRodadas(l)
-      if (!rodadaId && l[0]) mudar('rodada', l[0].id)
+      if (!rodadaId && l[0]) {
+        // vindo de "Ver avaliações" da base: abre a rodada aberta mais recente em que a pessoa participa
+        let alvo = l[0].id
+        if (pessoaSel) {
+          const { data: rp } = await supabase.from('rodada_participantes').select('rodada_id').eq('pessoa_id', pessoaSel).in('rodada_id', l.map((r) => r.id))
+          const ids = new Set(((rp as { rodada_id: string }[]) ?? []).map((x) => x.rodada_id))
+          alvo = l.find((r) => r.status === 'aberta' && ids.has(r.id))?.id ?? l.find((r) => ids.has(r.id))?.id ?? alvo
+        }
+        mudar('rodada', alvo)
+      }
     })
   }, [])
-  useEffect(() => {
-    if (rodadaId) rpc<Linha[]>('acompanhamento_rodada', { p_rodada: rodadaId }).then(setLinhas).catch((e) => setMsg(e.message))
-  }, [rodadaId])
 
-  const gestores = useMemo(() => [...new Set(linhas.map((l) => l.gestor).filter(Boolean))].sort() as string[], [linhas])
-  const areas = useMemo(() => [...new Set(linhas.map((l) => l.area).filter(Boolean))].sort() as string[], [linhas])
-  const filtradas = linhas.filter((l) =>
-    passa(l, situacao) && (!gestor || l.gestor === gestor) && (!area || l.area === area) &&
-    (!busca || `${l.nome} ${l.cargo}`.toLowerCase().includes(busca.toLowerCase())))
-  const conta = (s: StatusAvaliacao) => linhas.filter((l) => l.gestor_status === s).length
+  async function carregar() {
+    if (!rodadaId) return
+    const [{ data: p }, { data: a }] = await Promise.all([
+      supabase.from('rodada_participantes').select('pessoa_id, nome, area, cargo, perfil_id, gestor_id, gestor_secundario_id, acesso_assistido').eq('rodada_id', rodadaId).order('nome'),
+      supabase.from('avaliacoes').select('id, grupo, status, avaliado_id, avaliador_id, aceite:aceites(aceito_em)').eq('rodada_id', rodadaId).neq('status', 'cancelada'),
+    ])
+    const lp = (p as Part[]) ?? []
+    const la = (a as unknown as Av[]) ?? []
+    setParts(lp); setAvs(la)
+    const ids = [...lp.flatMap((x) => [x.gestor_id, x.gestor_secundario_id]), ...la.map((x) => x.avaliador_id)].filter(Boolean) as string[]
+    setNomes(await nomesPorId(ids))
+    const { data: em } = await supabase.from('pessoas').select('id, email').in('id', lp.map((x) => x.pessoa_id))
+    setEmails(Object.fromEntries(((em as { id: string; email: string | null }[]) ?? []).map((x) => [x.id, x.email ?? ''])))
+  }
+  useEffect(() => { carregar() }, [rodadaId])
+
   const rodada = rodadas.find((r) => r.id === rodadaId)
+  const contratacao = rodada?.tipo === 'contratacao'
+  const pendente = (a: Av) => a.status === 'pendente' || a.status === 'em_andamento' || a.status === 'enviada' || (contratacao && a.status === 'concluida' && !umAceite(a.aceite))
+  const linhas = useMemo(() => parts.map((p) => {
+    const sobre = avs.filter((a) => a.avaliado_id === p.pessoa_id)
+    return { ...p, total: sobre.length, pend: sobre.filter(pendente).length, sobre }
+  }), [parts, avs, contratacao])
 
-  async function lembrar(alvos: Linha[]) {
+  const gestores = useMemo(() => [...new Set(parts.map((p) => p.gestor_id).filter(Boolean))].map((g) => ({ id: g as string, nome: nomes[g as string] ?? '—' })).sort((a, b) => a.nome.localeCompare(b.nome)), [parts, nomes])
+  const areas = useMemo(() => [...new Set(parts.map((p) => p.area).filter(Boolean))].sort() as string[], [parts])
+  const filtradas = linhas.filter((l) =>
+    (situacao === 't' || (situacao === 'p' ? l.pend > 0 : l.pend === 0)) &&
+    (!gestor || l.gestor_id === gestor) && (!area || l.area === area) && (!perfil || String(l.perfil_id) === perfil) &&
+    (!busca || normal(`${l.nome} ${emails[l.pessoa_id] ?? ''} ${l.cargo ?? ''}`).includes(normal(busca))))
+
+  async function lembrar(alvos: typeof linhas) {
     const hoje = new Date().toISOString().slice(0, 10)
-    const { data: eu } = await supabase.rpc('eu')
-    const linhasNotif = alvos.map((l) => ({
-      tipo: 'lembrete_manual', destinatario_id: l.pessoa_id, rodada_id: rodadaId,
-      chave: `lembrete_manual:${rodadaId}:${l.pessoa_id}:${hoje}`,
-      payload: { pendencias: l.pendencias, assistido: l.acesso_assistido, pedido_por: eu },
-    }))
-    const { error } = await supabase.from('notificacoes').upsert(linhasNotif, { onConflict: 'chave', ignoreDuplicates: true })
-    setMsg(error ? error.message : `${alvos.length} lembrete(s) na fila de envio. Para o Operacional Obras, o aviso vai ao gestor.`)
+    const quem = [...new Set(alvos.flatMap((l) => l.sobre.filter((a) => a.status === 'pendente' || a.status === 'em_andamento').map((a) => a.avaliador_id)))]
+    if (!quem.length) return setMsg('Ninguém com formulário pendente nos filtros atuais.')
+    const { error } = await supabase.from('notificacoes').upsert(quem.map((id) => ({
+      tipo: 'lembrete_manual', destinatario_id: id, rodada_id: rodadaId, chave: `lembrete_manual:${rodadaId}:${id}:${hoje}`, payload: {},
+    })), { onConflict: 'chave', ignoreDuplicates: true })
+    setMsg(error ? error.message : `${quem.length} lembrete(s) na fila de envio.`)
   }
 
   function exportar() {
-    baixarCsv(`acompanhamento_${rodada?.nome ?? 'rodada'}.csv`, [
-      ['Nome', 'Cargo', 'Área', 'Perfil', 'Gestor', 'Avaliação do gestor', 'Autoavaliação', 'Avalia o gestor', 'Pares pendentes', 'Pendências'],
-      ...linhas.map((l) => [l.nome, l.cargo, l.area, l.perfil, l.gestor,
-        l.gestor_status ? STATUS[l.gestor_status].rotulo : '', l.auto_status ? STATUS[l.auto_status].rotulo : '',
-        l.lider_status ? STATUS[l.lider_status].rotulo : '', l.pares_pendentes, l.pendencias]),
+    baixarCsv(`status_${rodada?.nome ?? 'rodada'}.csv`, [
+      ['Participante', 'E-mail', 'Área', 'Perfil', 'Gestor', 'Gestor secundário', 'Avaliações', 'Pendências', 'Grupo', 'Quem preenche', 'Situação'],
+      ...linhas.flatMap((l) => (l.sobre.length ? l.sobre : [null]).map((a) => [
+        l.nome, emails[l.pessoa_id], l.area, l.perfil_id ? perfis[l.perfil_id] : '', nomes[l.gestor_id ?? ''] ?? '', nomes[l.gestor_secundario_id ?? ''] ?? '',
+        l.total, l.pend, a?.grupo ?? '', a ? nomes[a.avaliador_id] ?? '' : '', a ? STATUS[a.status].rotulo : '',
+      ])),
     ])
   }
 
-  const pendentes = linhas.filter((l) => l.pendencias > 0)
-
+  const comPend = linhas.filter((l) => l.pend > 0).length
   return (
     <>
       <div className="cabecalho">
-        <div><div className="migalha">Visão RH</div><h1>Acompanhamento</h1></div>
+        <div><div className="migalha">Visão RH</div><h1>Status das avaliações</h1>
+          {rodada && <span className="muted">{parts.length} participantes · {comPend} com pendência</span>}</div>
         <div className="linha">
           <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value, situacao })} aria-label="Rodada">
             {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}</option>)}
           </select>
-          <button className="primario" disabled={!pendentes.length} onClick={() => lembrar(pendentes)}>Lembrar todos os pendentes ({pendentes.length})</button>
-          <button onClick={exportar}>Exportar planilha</button>
+          <button onClick={exportar}>Exportar</button>
+          {ehAdmin && <button className="primario" onClick={() => lembrar(filtradas)}>Enviar lembrete aos pendentes</button>}
         </div>
       </div>
       {msg && <div className="aviso info">{msg}</div>}
 
-      <div className="linha">
-        <span className="muted" style={{ fontSize: 13 }}>Avaliação do gestor:</span>
-        {([['concluida', 'ok', 'Concluídas'], ['em_andamento', 'info', 'Em andamento'], ['pendente', 'pend', 'Não iniciadas'], ['enviada', 'roxo', 'Aguardando revisão']] as const).map(([s, c, t]) => (
-          <button key={s} className={`pill ${c}`} aria-pressed={situacao === `g:${s}`} style={{ fontSize: 14, padding: '8px 14px' }}
-            onClick={() => mudar('situacao', situacao === `g:${s}` ? 'p' : `g:${s}`)}>{t} {conta(s)}</button>
-        ))}
-      </div>
-
       <section className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', padding: '16px 20px' }}>
-        <label className="campo" style={{ flex: '2 1 220px', fontWeight: 400 }}>Buscar pessoa<input type="search" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Gestor<select value={gestor} onChange={(e) => setGestor(e.target.value)}><option value="">Todos</option>{gestores.map((g) => <option key={g}>{g}</option>)}</select></label>
-        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Área<select value={area} onChange={(e) => setArea(e.target.value)}><option value="">Todas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select></label>
-        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Situação<select value={situacao} onChange={(e) => mudar('situacao', e.target.value)}>{Object.entries(SITUACOES).map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
+        <label className="campo" style={{ flex: '2 1 240px', fontWeight: 400 }}>Buscar<input type="search" placeholder="Nome, e-mail ou cargo" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Gestor<select value={gestor} onChange={(e) => setGestor(e.target.value)}><option value="">Todos</option>{gestores.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 140px', fontWeight: 400 }}>Área<select value={area} onChange={(e) => setArea(e.target.value)}><option value="">Todas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 140px', fontWeight: 400 }}>Perfil<select value={perfil} onChange={(e) => setPerfil(e.target.value)}><option value="">Todos</option>{Object.entries(perfis).map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Situação<select value={situacao} onChange={(e) => mudar('situacao', e.target.value)}>
+          <option value="p">Com pendência</option><option value="ok">Sem pendência</option><option value="t">Todos</option></select></label>
       </section>
 
       <section className="card" style={{ padding: 8 }}>
-        <div className="tabela-box"><table style={{ minWidth: 980 }}>
-          <thead><tr><th>Participante</th><th>Gestor</th><th>Gestor avalia</th><th>Autoavaliação</th><th>Avalia o gestor</th><th>Pares</th><th></th></tr></thead>
+        <div className="tabela-box"><table style={{ minWidth: 860 }}>
+          <thead><tr><th>Participante</th><th>Gestor</th><th>Gestor secundário</th><th>Perfil</th><th className="c">Avaliações</th><th>Pendências</th></tr></thead>
           <tbody>{filtradas.map((l) => (
-            <tr key={l.pessoa_id}>
-              <td><strong>{l.nome}</strong><div className="muted">{l.cargo} · {l.perfil}{l.acesso_assistido ? ' · assistido' : ''}</div></td>
-              <td>{l.gestor ?? '—'}</td>
-              <td><Status s={l.gestor_status} /></td><td><Status s={l.auto_status} /></td><td><Status s={l.lider_status} /></td>
-              <td>{l.pares_pendentes ? <span className="pill pend">{l.pares_pendentes} pendentes</span> : '—'}</td>
-              <td style={{ textAlign: 'right' }}>{l.pendencias > 0 && <button className="pequeno" onClick={() => lembrar([l])}>{l.acesso_assistido ? 'Lembrar gestor' : 'Lembrar'}</button>}</td>
+            <tr key={l.pessoa_id} className="clicavel" onClick={() => mudar('pessoa', l.pessoa_id)}>
+              <td><button className="link-nome" onClick={(e) => { e.stopPropagation(); mudar('pessoa', l.pessoa_id) }}>{l.nome}</button><div className="muted">{emails[l.pessoa_id] || (l.acesso_assistido ? 'preenchimento assistido' : '—')}</div></td>
+              <td>{nomes[l.gestor_id ?? ''] ?? '—'}</td>
+              <td>{nomes[l.gestor_secundario_id ?? ''] ?? '—'}</td>
+              <td>{l.perfil_id ? perfis[l.perfil_id] : '—'}</td>
+              <td className="c">{l.total}</td>
+              <td><strong style={{ color: l.pend ? 'var(--pend)' : 'var(--ok)' }}>{l.pend} {l.pend === 1 ? 'pendência' : 'pendências'}</strong></td>
             </tr>
           ))}</tbody>
         </table></div>
-        <p className="muted" style={{ padding: '8px 12px' }}>Mostrando {filtradas.length} de {linhas.length}.</p>
+        <p className="muted" style={{ padding: '8px 12px' }}>Mostrando {filtradas.length} de {linhas.length}. Clique no participante para ver quem avalia quem.</p>
       </section>
+
+      {pessoaSel && rodadaId && (
+        <AvaliacoesPessoa rodadaId={rodadaId} pessoaId={pessoaSel} podeAgir={ehAdmin} onFechar={() => mudar('pessoa', null)} onMudou={carregar} />
+      )}
     </>
   )
 }

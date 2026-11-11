@@ -16,7 +16,7 @@ export default function Layout() {
             <NavLink to="/rh" end>Painel estratégico</NavLink>
             <NavLink to="/rh/pessoas">Base de colaboradores</NavLink>
             <NavLink to="/rh/rodadas">Rodadas</NavLink>
-            <NavLink to="/rh/acompanhamento">Acompanhamento</NavLink>
+            <NavLink to="/rh/acompanhamento">Status das avaliações</NavLink>
             <NavLink to="/rh/resultados">Resultados</NavLink>
             {ehAdmin && <NavLink to="/rh/configuracao">Configuração</NavLink>}
           </nav>

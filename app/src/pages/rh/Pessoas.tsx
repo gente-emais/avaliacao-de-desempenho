@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { supabase, rpc, nomesPorId } from '../../lib/supabase'
+import { useNavigate } from 'react-router-dom'
+import { supabase, rpc, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
+import FormColaborador from '../../components/FormColaborador'
+import { data as dataBr } from '../../lib/format'
 import { useAuth } from '../../lib/auth'
 
 interface Linha { linha: number; situacao: string; mensagem: string | null; nome: string; cpf: string }
 interface Previa { importacao_id: string; gravado: boolean; lidas: number; rejeitadas: number; resumo: Record<string, number>; linhas: Linha[] }
-interface PessoaLista {
-  id: string; nome: string; cpf_mascarado: string; cargo: string | null; area: string | null; papel: string
-  acesso_assistido: boolean; email_ficticio: boolean; user_id: string | null; perfil: { nome: string } | null; gestor: { nome: string } | null
-}
+type PessoaLista = Pessoa & { user_id: string | null }
 
 const COLUNAS: [string, string][] = [
   ['cpf', 'CPF'], ['nome', 'Nome'], ['email', 'E-mail'], ['cargo', 'Cargo'], ['area', 'Área'],
@@ -33,19 +33,29 @@ export default function Pessoas() {
   const [inativar, setInativar] = useState(false)
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
   const [base, setBase] = useState<PessoaLista[]>([])
+  const [perfis, setPerfis] = useState<{ id: number; nome: string }[]>([])
   const [busca, setBusca] = useState('')
+  const [fArea, setFArea] = useState('')
+  const [fPerfil, setFPerfil] = useState('')
+  const [fGestor, setFGestor] = useState('')
+  const [fSit, setFSit] = useState<'ativos' | 'inativos' | 'todos'>('ativos')
+  const [fKpi, setFKpi] = useState<'' | 'semLogin' | 'semGestor' | 'semPerfil'>('')
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [editar, setEditar] = useState<PessoaLista | 'novo' | null>(null)
+  const [mostrarImport, setMostrarImport] = useState(false)
+  const [historico, setHistorico] = useState<{ nome: string; linhas: { ano: number; rodada: string; faixa: string | null; nota: number | null }[] } | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
 
   async function carregarBase() {
-    const { data, error } = await supabase.from('pessoas')
-      .select('id, nome, cpf_mascarado, cargo, area, papel, acesso_assistido, email_ficticio, user_id, gestor_id, perfil:perfis(nome)')
-      .eq('ativo', true).order('nome')
+    const { data, error } = await supabase.from('pessoas').select(`${PESSOA_COLS}, user_id`).order('nome')
     if (error) setMsg({ t: 'Não foi possível carregar a base: ' + error.message, c: 'erro' })
-    const lista = (data as unknown as (PessoaLista & { gestor_id: string | null })[]) ?? []
-    const nomes = await nomesPorId(lista.map((p) => p.gestor_id))
-    setBase(lista.map((p) => ({ ...p, gestor: p.gestor_id && nomes[p.gestor_id] ? { nome: nomes[p.gestor_id] } : null })))
+    setBase((data as unknown as PessoaLista[]) ?? [])
   }
-  useEffect(() => { carregarBase() }, [])
+  useEffect(() => {
+    carregarBase()
+    supabase.from('perfis').select('id, nome').order('ordem').then(({ data }) => setPerfis((data as { id: number; nome: string }[]) ?? []))
+  }, [])
 
   function baixarModelo() {
     const ws = XLSX.utils.aoa_to_sheet([COLUNAS.map(([, r]) => r), ['12345678909', 'Nome Sobrenome', 'nome@emais.com.br', 'Analista', 'Engenharia', 'Tático', '98765432100', '', '', 'N']])
@@ -98,31 +108,81 @@ export default function Pessoas() {
     setMsg({ t: `${(data as { enviados: number }).enviados} link(s) de acesso enviados por e-mail.`, c: 'ok' })
   }
 
-  async function mudarPapel(id: string, papel: string) {
-    const { error } = await supabase.from('pessoas').update({ papel }).eq('id', id)
-    if (error) setMsg({ t: error.message, c: 'erro' }); else carregarBase()
-  }
-
+  const porId = useMemo(() => new Map(base.map((p) => [p.id, p])), [base])
+  const lideradosDe = useMemo(() => { const m: Record<string, number> = {}; base.forEach((p) => { if (p.ativo && p.gestor_id) m[p.gestor_id] = (m[p.gestor_id] ?? 0) + 1 }); return m }, [base])
+  const perfilNome = (id: number | null) => perfis.find((x) => x.id === id)?.nome
+  const ativos = base.filter((p) => p.ativo)
+  const semLogin = (p: PessoaLista) => !p.user_id && !p.acesso_assistido
+  const kpis = { ativos: ativos.length, semLogin: ativos.filter(semLogin).length, semGestor: ativos.filter((p) => !p.gestor_id).length, semPerfil: ativos.filter((p) => !p.perfil_id).length }
+  const areas = [...new Set(base.map((p) => p.area).filter(Boolean))].sort() as string[]
+  const gestoresLista = Object.keys(lideradosDe).map((id) => porId.get(id)).filter(Boolean).sort((a, b) => a!.nome.localeCompare(b!.nome)) as PessoaLista[]
   const filtrada = useMemo(() => {
     const b = normal(busca)
-    return b ? base.filter((p) => normal(`${p.nome} ${p.cargo} ${p.area} ${p.gestor?.nome}`).includes(b)) : base
-  }, [base, busca])
+    return base.filter((p) => (fSit === 'todos' || (fSit === 'ativos') === p.ativo)
+      && (!fArea || p.area === fArea) && (!fPerfil || String(p.perfil_id) === fPerfil) && (!fGestor || p.gestor_id === fGestor)
+      && (fKpi !== 'semLogin' || semLogin(p)) && (fKpi !== 'semGestor' || !p.gestor_id) && (fKpi !== 'semPerfil' || !p.perfil_id)
+      && (!b || normal(`${p.nome} ${p.email ?? ''} ${p.cargo ?? ''} ${p.cpf_mascarado}`).includes(b)))
+  }, [base, busca, fArea, fPerfil, fGestor, fSit, fKpi])
+  const todosMarcados = filtrada.length > 0 && filtrada.every((p) => sel.has(p.id))
+  const marcar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
+
+  async function emMassa(campo: 'gestor_id' | 'perfil_id' | 'ativo', valor: string | number | boolean | null) {
+    const ids = [...sel]
+    if (!ids.length) return
+    if (campo === 'ativo' && !window.confirm(`Inativar ${ids.length} pessoa(s)? Elas saem das próximas rodadas.`)) return
+    if (campo === 'gestor_id' && ids.includes(String(valor))) return setMsg({ t: 'Uma pessoa não pode ser gestora de si mesma.', c: 'erro' })
+    const { error } = await supabase.from('pessoas').update({ [campo]: valor }).in('id', ids)
+    if (error) return setMsg({ t: error.message, c: 'erro' })
+    let rodadas = 0
+    if (campo !== 'ativo') for (const id of ids) { try { const r = await rpc<{ rodadas: number }>('atualizar_participante', { p_pessoa: id }); rodadas += r.rodadas } catch { /* segue */ } }
+    setMsg({ t: `${ids.length} pessoa(s) atualizadas.${rodadas ? ' Rodadas abertas ajustadas.' : ''}`, c: 'ok' })
+    setSel(new Set()); carregarBase()
+  }
+  async function inativarUm(p: PessoaLista) {
+    if (!window.confirm(`Inativar ${p.nome}? A pessoa sai das próximas rodadas.`)) return
+    const { error } = await supabase.from('pessoas').update({ ativo: false }).eq('id', p.id)
+    setMsg(error ? { t: error.message, c: 'erro' } : { t: `${p.nome} inativado(a).`, c: 'ok' }); carregarBase()
+  }
+  async function verHistorico(p: PessoaLista) {
+    const { data } = await supabase.from('resultados').select('faixa_nome, nota_final, rodada:rodadas(nome, ano)').eq('pessoa_id', p.id)
+    const l = ((data as unknown as { faixa_nome: string | null; nota_final: number | null; rodada: { nome: string; ano: number } }[]) ?? [])
+      .map((x) => ({ ano: x.rodada.ano, rodada: x.rodada.nome, faixa: x.faixa_nome, nota: x.nota_final })).sort((a, b) => b.ano - a.ano)
+    setHistorico({ nome: p.nome, linhas: l })
+  }
+  function exportarBase() {
+    const csv = [['Nome', 'E-mail', 'CPF', 'Cargo', 'Área', 'Perfil', 'Gestor', 'Gestor secundário', 'Papel', 'Ativo', 'Login'],
+      ...filtrada.map((p) => [p.nome, p.email ?? '', p.cpf_mascarado, p.cargo ?? '', p.area ?? '', perfilNome(p.perfil_id) ?? '', porId.get(p.gestor_id ?? '')?.nome ?? '', porId.get(p.gestor_secundario_id ?? '')?.nome ?? '', p.papel, p.ativo ? 'Sim' : 'Não', p.user_id ? 'Sim' : 'Não'])]
+    const blob = new Blob(['\ufeff' + csv.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'base_colaboradores.csv'; a.click()
+  }
+
   const r = previa?.resumo ?? {}
   const validas = previa ? previa.lidas - previa.rejeitadas : 0
+
+  const Pessoa2 = ({ id }: { id: string | null }) => { const g = id ? porId.get(id) : null; return g ? <>{g.nome}<div className="muted">{g.email ?? ''}</div></> : <span className="muted">—</span> }
 
   return (
     <>
       <div className="cabecalho">
         <div><div className="migalha">Visão RH</div><h1>Base de colaboradores</h1></div>
-        <div className="linha">
-          <button onClick={baixarModelo}>Baixar planilha modelo</button>
-          {ehAdmin && <button onClick={criarLogins}>Criar logins pendentes</button>}
-          {ehAdmin && <button onClick={() => enviarAcesso(base.filter((p) => !p.acesso_assistido && !p.email_ficticio).map((p) => p.id))}>Enviar link de acesso a todos</button>}
-        </div>
+        {ehAdmin && (
+          <div className="linha">
+            <button onClick={() => setMostrarImport((v) => !v)} aria-expanded={mostrarImport}>{mostrarImport ? 'Fechar envio de planilha' : 'Subir planilha'}</button>
+            <button onClick={baixarModelo}>Baixar modelo</button>
+            <button onClick={criarLogins}>Criar logins pendentes</button>
+            <button className="primario" onClick={() => { setEditar('novo'); window.scrollTo({ top: 0 }) }}>+ Adicionar colaborador</button>
+          </div>
+        )}
       </div>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
 
-      {ehAdmin && (
+      {editar && (
+        <FormColaborador pessoa={editar === 'novo' ? null : editar} pessoas={base} perfis={perfis}
+          onFechar={() => setEditar(null)} onErro={(t) => setMsg({ t, c: 'erro' })}
+          onSalvo={(t) => { setMsg({ t, c: 'ok' }); setEditar(null); carregarBase() }} />
+      )}
+
+      {ehAdmin && (mostrarImport || previa) && (
         <div className="grade" style={{ ['--min' as string]: '340px' }}>
           <section className="card">
             <h2>1. Envie a planilha</h2>
@@ -173,25 +233,97 @@ export default function Pessoas() {
         </section>
       )}
 
-      <section className="card">
-        <div className="linha entre">
-          <h2>Base atual · {base.length} ativos</h2>
-          <input type="search" placeholder="Buscar nome, cargo, área ou gestor" value={busca} onChange={(e) => setBusca(e.target.value)} style={{ width: 300, maxWidth: '100%' }} aria-label="Buscar" />
+      <div className="grade" style={{ ['--min' as string]: '180px' }}>
+        {([['', 'Ativos', kpis.ativos], ['semLogin', 'Sem login', kpis.semLogin], ['semGestor', 'Sem gestor', kpis.semGestor], ['semPerfil', 'Sem perfil de avaliação', kpis.semPerfil]] as const).map(([k, t, n]) => (
+          <button key={t} className="kpi-filtro" aria-pressed={fKpi === k && (k !== '' || fSit === 'ativos')} onClick={() => { setFKpi(k); setFSit('ativos') }}>
+            <span className="muted">{t}</span><b>{n}</b>
+          </button>
+        ))}
+      </div>
+
+      <section className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', padding: '16px 20px' }}>
+        <label className="campo" style={{ flex: '3 1 260px', fontWeight: 400 }}>Buscar<input type="search" placeholder="Nome, e-mail, CPF ou cargo" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
+        <label className="campo" style={{ flex: '1 1 140px', fontWeight: 400 }}>Área<select value={fArea} onChange={(e) => setFArea(e.target.value)}><option value="">Todas</option>{areas.map((a) => <option key={a}>{a}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 140px', fontWeight: 400 }}>Perfil<select value={fPerfil} onChange={(e) => setFPerfil(e.target.value)}><option value="">Todos</option>{perfis.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 160px', fontWeight: 400 }}>Gestor<select value={fGestor} onChange={(e) => setFGestor(e.target.value)}><option value="">Todos</option>{gestoresLista.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}</select></label>
+        <label className="campo" style={{ flex: '1 1 120px', fontWeight: 400 }}>Situação<select value={fSit} onChange={(e) => setFSit(e.target.value as typeof fSit)}><option value="ativos">Ativos</option><option value="inativos">Inativos</option><option value="todos">Todos</option></select></label>
+        <button onClick={exportarBase}>Exportar</button>
+      </section>
+
+      {ehAdmin && sel.size > 0 && (
+        <div className="barra-massa">
+          <strong>{sel.size} selecionado(s)</strong>
+          <select aria-label="Trocar gestor" defaultValue="" onChange={(e) => { if (e.target.value) emMassa('gestor_id', e.target.value); e.target.value = '' }}>
+            <option value="" disabled>Trocar gestor…</option>
+            {ativos.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+          </select>
+          <select aria-label="Trocar perfil" defaultValue="" onChange={(e) => { if (e.target.value) emMassa('perfil_id', Number(e.target.value)); e.target.value = '' }}>
+            <option value="" disabled>Trocar perfil…</option>
+            {perfis.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          </select>
+          <button onClick={() => enviarAcesso([...sel])}>Enviar link de acesso</button>
+          <button onClick={() => emMassa('ativo', false)}>Inativar</button>
+          <button onClick={() => setSel(new Set())}>Limpar seleção</button>
         </div>
-        <div className="tabela-box"><table>
-          <thead><tr><th>Nome</th><th>CPF</th><th>Cargo</th><th>Área</th><th>Gestor</th><th>Perfil</th><th>Acesso</th>{ehAdmin && <th>Papel</th>}</tr></thead>
+      )}
+
+      <section className="card" style={{ padding: 8 }}>
+        <div className="tabela-box" style={{ overflow: 'visible' }}><table style={{ minWidth: 1080 }}>
+          <thead><tr>
+            {ehAdmin && <th style={{ width: 36 }}><input type="checkbox" aria-label="Marcar todos" checked={todosMarcados} onChange={() => setSel(todosMarcados ? new Set() : new Set(filtrada.map((p) => p.id)))} style={{ minHeight: 0, width: 18, height: 18 }} /></th>}
+            <th>Colaborador</th><th>Gestor</th><th>Gestor secundário</th><th>Cargo</th><th>Perfil (nível)</th><th>Área</th><th>Marcadores</th>{ehAdmin && <th></th>}
+          </tr></thead>
           <tbody>{filtrada.map((p) => (
-            <tr key={p.id}>
-              <td><strong>{p.nome}</strong></td><td className="muted">{p.cpf_mascarado}</td><td>{p.cargo}</td><td>{p.area}</td><td>{p.gestor?.nome ?? '—'}</td>
-              <td>{p.perfil ? <span className="pill roxo">{p.perfil.nome}</span> : <span className="pill erro">Sem perfil</span>}</td>
-              <td className="muted">{p.acesso_assistido ? 'Assistido pelo gestor' : p.email_ficticio ? 'Sem e-mail válido' : p.user_id ? <>Login criado {ehAdmin && <button className="pequeno" onClick={() => enviarAcesso([p.id])}>Enviar link</button>}</> : 'Sem login ainda'}</td>
-              {ehAdmin && <td><select value={p.papel} onChange={(e) => mudarPapel(p.id, e.target.value)} aria-label={`Papel de ${p.nome}`}>
-                <option value="participante">Participante</option><option value="bp_rh">BP do RH</option><option value="admin_rh">RH administrador</option>
-              </select></td>}
+            <tr key={p.id} style={{ opacity: p.ativo ? 1 : 0.6 }}>
+              {ehAdmin && <td><input type="checkbox" aria-label={`Marcar ${p.nome}`} checked={sel.has(p.id)} onChange={() => marcar(p.id)} style={{ minHeight: 0, width: 18, height: 18 }} /></td>}
+              <td>{ehAdmin ? <button className="link-nome" onClick={() => { setEditar(p); window.scrollTo({ top: 0 }) }}>{p.nome}</button> : <strong>{p.nome}</strong>}
+                <div className="muted">{p.acesso_assistido ? 'sem e-mail · preenchimento assistido' : p.email ?? 'sem e-mail'}</div></td>
+              <td>{p.gestor_id ? <Pessoa2 id={p.gestor_id} /> : <span className="marcador m-alerta">Sem gestor</span>}</td>
+              <td><Pessoa2 id={p.gestor_secundario_id} /></td>
+              <td>{p.cargo ?? '—'}</td>
+              <td>{perfilNome(p.perfil_id) ?? <span className="marcador m-alerta">Sem perfil</span>}</td>
+              <td>{p.area ?? '—'}</td>
+              <td>
+                {p.gestor_id && <span className="marcador m-lid">Liderado</span>}
+                {lideradosDe[p.id] > 0 && <span className="marcador m-ges">Gestor · {lideradosDe[p.id]}</span>}
+                {p.papel !== 'participante' && <span className="marcador m-rh">{p.papel === 'admin_rh' ? 'RH' : 'BP do RH'}</span>}
+                {p.ativo && semLogin(p) && <span className="marcador m-alerta">Sem login</span>}
+                {!p.ativo && <span className="pill neutro">Inativo</span>}
+              </td>
+              {ehAdmin && (
+                <td style={{ textAlign: 'right' }}>
+                  <details className="acoes-menu">
+                    <summary>Ações ▾</summary>
+                    <div>
+                      <button onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; setEditar(p); window.scrollTo({ top: 0 }) }}>Editar cadastro</button>
+                      <button onClick={() => navigate(`/rh/acompanhamento?pessoa=${p.id}`)}>Ver avaliações da rodada</button>
+                      <button onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; verHistorico(p) }}>Ver histórico de resultados</button>
+                      {!p.acesso_assistido && <button onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; enviarAcesso([p.id]) }}>Enviar link de acesso</button>}
+                      {p.ativo && <button onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement).open = false; inativarUm(p) }}>Inativar</button>}
+                    </div>
+                  </details>
+                </td>
+              )}
             </tr>
           ))}</tbody>
         </table></div>
+        <p className="muted" style={{ padding: '8px 12px' }}>{filtrada.length} {filtrada.length === 1 ? 'colaborador' : 'colaboradores'}{ehAdmin ? ' · clique no nome para editar o cadastro' : ''}</p>
       </section>
+
+      {historico && (
+        <div className="gaveta-fundo" onClick={() => setHistorico(null)}>
+          <aside className="gaveta" role="dialog" aria-modal="true" aria-label={`Histórico de ${historico.nome}`} onClick={(e) => e.stopPropagation()}>
+            <div className="linha entre"><h2>Histórico de {historico.nome}</h2><button className="pequeno" onClick={() => setHistorico(null)}>Fechar</button></div>
+            {historico.linhas.length === 0 ? <p className="muted">Sem resultados registrados.</p> : (
+              <div className="tabela-box"><table>
+                <thead><tr><th>Ano</th><th>Rodada</th><th>Faixa</th><th>Nota</th></tr></thead>
+                <tbody>{historico.linhas.map((l, i) => <tr key={i}><td>{l.ano}</td><td>{l.rodada}</td><td>{l.faixa ?? '—'}</td><td>{l.nota == null ? '—' : Number(l.nota).toFixed(2).replace('.', ',')}</td></tr>)}</tbody>
+              </table></div>
+            )}
+            <p className="muted">Consultado em {dataBr(new Date().toISOString())}</p>
+          </aside>
+        </div>
+      )}
     </>
   )
 }

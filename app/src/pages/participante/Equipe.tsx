@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { supabase, PESSOA_COLS, type Pessoa, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { STATUS, iniciais, nota, umAceite } from '../../lib/format'
+import AvaliacoesPessoa from '../../components/AvaliacoesPessoa'
 
-interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; rodada: { nome: string; tipo: TipoRodada; status: string }; aceite: { aceito_em: string } | { aceito_em: string }[] | null }
+interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; rodada: { id: string; nome: string; tipo: TipoRodada; status: string }; aceite: { aceito_em: string } | { aceito_em: string }[] | null }
 interface Res { pessoa_id: string; nota_final: number | null; faixa_nome: string | null; rodada: { nome: string } }
 
 const TIPO_CURTO: Record<TipoRodada, string> = { contratacao: 'Contratação', avaliativo: 'Avaliação', feedback: 'Feedback' }
@@ -15,6 +16,7 @@ export default function Equipe() {
   const [avs, setAvs] = useState<Av[]>([])
   const [res, setRes] = useState<Res[]>([])
   const [perfis, setPerfis] = useState<Record<number, string>>({})
+  const [ver, setVer] = useState<{ rodada: string; pessoa: string; nome: string } | null>(null)
 
   useEffect(() => {
     if (!eu) return
@@ -25,7 +27,7 @@ export default function Equipe() {
       const ids = pessoas.map((x) => x.id)
       if (!ids.length) return
       const [a, r, pf] = await Promise.all([
-        supabase.from('avaliacoes').select('id, grupo, status, avaliado_id, avaliador_id, rodada:rodadas!inner(nome, tipo, status), aceite:aceites(aceito_em)')
+        supabase.from('avaliacoes').select('id, grupo, status, avaliado_id, avaliador_id, rodada:rodadas!inner(id, nome, tipo, status), aceite:aceites(aceito_em)')
           .in('avaliado_id', ids).eq('rodada.status', 'aberta').neq('status', 'cancelada'),
         supabase.from('resultados').select('pessoa_id, nota_final, faixa_nome, rodada:rodadas(nome)').in('pessoa_id', ids).order('calculado_em', { ascending: false }),
         supabase.from('perfis').select('id, nome'),
@@ -68,6 +70,9 @@ export default function Equipe() {
                 {ultimo && <Linha k="Último resultado" v={`${nota(ultimo.nota_final)} · ${ultimo.faixa_nome ?? ''}`} c="neutro" />}
                 {!minhas.length && !auto.length && !ultimo && <Linha k="Rodadas" v="Nenhuma aberta" c="neutro" />}
               </dl>
+              {[...new Map(avs.filter((a) => a.avaliado_id === p.id).map((a) => [a.rodada.id, a.rodada])).values()].map((ro) => (
+                <button key={ro.id} className="pequeno" onClick={() => setVer({ rodada: ro.id, pessoa: p.id, nome: p.nome })}>Quem avalia · {ro.nome}</button>
+              ))}
               {pendente
                 ? <Link className="botao primario" to={`/avaliacao/${pendente.id}`} style={{ justifyContent: 'center' }}>{pendente.status === 'pendente' ? 'Começar' : 'Continuar'}</Link>
                 : <Link className="botao" to="/one-a-one" style={{ justifyContent: 'center' }}>Abrir One a One</Link>}
@@ -75,6 +80,7 @@ export default function Equipe() {
           )
         })}
       </div>
+      {ver && <AvaliacoesPessoa rodadaId={ver.rodada} pessoaId={ver.pessoa} nome={ver.nome} podeAgir={false} onFechar={() => setVer(null)} />}
     </>
   )
 }
