@@ -25,7 +25,11 @@ export default function MeuResultado() {
     if (!eu) return
     supabase.from('resultados').select('rodada_id, nota_final, nota_autoavaliacao, faixa_nome, rodada:rodadas(nome, ano)')
       .eq('pessoa_id', eu.id).order('calculado_em', { ascending: false })
-      .then(({ data }) => { const l = (data as unknown as Res[]) ?? []; setLista(l); if (l[0]) setSel(l[0].rodada_id) })
+      .then(({ data }) => {
+        // mais recente primeiro, pelo ano da rodada (as importadas da Mindsight têm data de cálculo de hoje)
+        const l = ((data as unknown as Res[]) ?? []).sort((a, b) => b.rodada.ano - a.rodada.ano || a.rodada.nome.localeCompare(b.rodada.nome))
+        setLista(l); if (l[0]) setSel(l[0].rodada_id)
+      })
   }, [eu?.id])
 
   useEffect(() => {
@@ -74,6 +78,16 @@ export default function MeuResultado() {
     </>
   )
   const iFinal = faixas.findIndex((f) => f.nome === atual?.faixa_nome)
+  // Comparativo com o ano anterior: só nomes de faixa, sem notas
+  const ordemFaixa = (nome: string | null) => faixas.findIndex((f) => f.nome === nome)
+  const historico = lista.filter((l) => l.faixa_nome && atual && l.rodada.ano <= atual.rodada.ano)
+    .sort((a, b) => a.rodada.ano - b.rodada.ano).slice(-4)
+  const anterior = atual ? lista.filter((l) => l.rodada.ano < atual.rodada.ano && l.faixa_nome).sort((a, b) => b.rodada.ano - a.rodada.ano)[0] : undefined
+  const passo = anterior ? iFinal - ordemFaixa(anterior.faixa_nome) : 0
+  const tendencia = !anterior || ordemFaixa(anterior.faixa_nome) < 0 || iFinal < 0 ? null
+    : passo > 0 ? { t: `Subiu ${passo > 1 ? `${passo} faixas` : 'uma faixa'} em relação a ${anterior.rodada.ano}`, s: '↑', c: 'ok' }
+    : passo < 0 ? { t: `Ficou ${-passo > 1 ? `${-passo} faixas` : 'uma faixa'} abaixo de ${anterior.rodada.ano}`, s: '↓', c: 'pend' }
+    : { t: `Manteve a mesma faixa de ${anterior.rodada.ano}`, s: '=', c: 'info' }
   const auto = faixaDe(atual?.nota_autoavaliacao ?? null)
 
   return (
@@ -93,6 +107,7 @@ export default function MeuResultado() {
         <div className="linha" style={{ alignItems: 'baseline', gap: 16 }}>
           <span style={{ fontSize: 40, fontWeight: 800, color: 'var(--verde-escuro)', lineHeight: 1.1 }}>{atual?.faixa_nome}</span>
           {auto && <span className="muted">Na sua autoavaliação: <strong>{auto.nome}</strong></span>}
+          {tendencia && <span className={`pill ${tendencia.c}`} style={{ fontSize: 14, padding: '6px 12px' }}>{tendencia.s} {tendencia.t}</span>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${faixas.length || 1}, minmax(0, 1fr))`, gap: 6 }}>
           {faixas.map((f, i) => {
@@ -111,7 +126,34 @@ export default function MeuResultado() {
         </div>
       </section>
 
-      <section className="card">
+      {historico.length > 1 && (
+        <section className="card">
+          <div className="linha entre">
+            <h2>Sua evolução</h2>
+            <span className="muted">Classificação final em cada ciclo</span>
+          </div>
+          <div className="linha" style={{ gap: 8, alignItems: 'stretch' }}>
+            {historico.map((h, k) => {
+              const i = ordemFaixa(h.faixa_nome)
+              const eAtual = h.rodada_id === sel
+              return (
+                <div key={h.rodada_id} className="linha" style={{ gap: 8, flex: '1 1 150px' }}>
+                  {k > 0 && <span aria-hidden="true" className="muted" style={{ fontSize: 18 }}>→</span>}
+                  <button onClick={() => setSel(h.rodada_id)} aria-pressed={eAtual} title={h.rodada.nome}
+                    style={{ flex: 1, flexDirection: 'column', alignItems: 'flex-start', gap: 6, padding: '10px 14px', minHeight: 0, height: 'auto',
+                      borderColor: eAtual ? 'var(--verde-escuro)' : 'var(--borda)', borderWidth: eAtual ? 2 : 1 }}>
+                    <span className="muted" style={{ fontSize: 13, fontWeight: 600 }}>{h.rodada.ano}</span>
+                    {i >= 0 ? <Selo i={i} nome={h.faixa_nome!} /> : <span className="pill neutro">{h.faixa_nome}</span>}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {blocos.length === 0 && <p className="muted">Nesta rodada não há detalhe por competência (resultado trazido do sistema anterior).</p>}
+      {blocos.length > 0 && <section className="card">
         <div className="linha entre">
           <h2>Por competência</h2>
           <span className="muted">O que o seu gestor avaliou e o que você se deu</span>
@@ -134,7 +176,7 @@ export default function MeuResultado() {
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
       {(textos.fortes || textos.desenvolver) && (
         <div className="grade">
