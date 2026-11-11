@@ -16,7 +16,7 @@ export const PESSOA_COLS =
 
 export type Papel = 'admin_rh' | 'bp_rh' | 'participante'
 export type Grupo = 'auto' | 'gestor' | 'lider' | 'par'
-export type StatusAvaliacao = 'pendente' | 'em_andamento' | 'enviada' | 'concluida'
+export type StatusAvaliacao = 'pendente' | 'em_andamento' | 'enviada' | 'concluida' | 'cancelada'
 export type TipoRodada = 'contratacao' | 'avaliativo' | 'feedback'
 
 export interface Pessoa {

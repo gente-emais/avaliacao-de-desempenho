@@ -14,6 +14,11 @@ delete from public.pdi_objetivos where pessoa_id in (select id from _ficticias);
 delete from public.rodadas where id in ('a0000000-0000-0000-0000-000000002025',
                                         'a0000000-0000-0000-0000-000000012026',
                                         'a0000000-0000-0000-0000-000000022026');
+-- Rodadas históricas de teste importadas pela tela Configuração > Importar resultados
+delete from public.rodadas where status = 'historica' and nome like '%(Mindsight)'
+   and nome in ('Ciclo Avaliativo 2022 (Mindsight)', 'Ciclo Avaliativo 2023 (Mindsight)', 'Ciclo Avaliativo 2024 (Mindsight)');
+-- Ex-colaboradores fictícios criados como inativos na importação
+delete from public.pessoas where cpf in ('19226777799', '68988941969') and not ativo;
 delete from public.notificacoes where destinatario_id in (select id from _ficticias);
 update public.pessoas set gestor_id = null, gestor_secundario_id = null, bp_id = null
  where id in (select id from _ficticias) or gestor_id in (select id from _ficticias);

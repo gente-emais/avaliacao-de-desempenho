@@ -26,7 +26,7 @@ export default function Equipe() {
       if (!ids.length) return
       const [a, r, pf] = await Promise.all([
         supabase.from('avaliacoes').select('id, grupo, status, avaliado_id, avaliador_id, rodada:rodadas!inner(nome, tipo, status), aceite:aceites(aceito_em)')
-          .in('avaliado_id', ids).eq('rodada.status', 'aberta'),
+          .in('avaliado_id', ids).eq('rodada.status', 'aberta').neq('status', 'cancelada'),
         supabase.from('resultados').select('pessoa_id, nota_final, faixa_nome, rodada:rodadas(nome)').in('pessoa_id', ids).order('calculado_em', { ascending: false }),
         supabase.from('perfis').select('id, nome'),
       ])

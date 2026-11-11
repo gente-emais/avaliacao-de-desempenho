@@ -17,7 +17,7 @@ export default function Painel() {
       const out: Resumo[] = []
       for (const r of lista) {
         const [{ data: av }, { count }] = await Promise.all([
-          supabase.from('avaliacoes').select('status').eq('rodada_id', r.id),
+          supabase.from('avaliacoes').select('status').eq('rodada_id', r.id).neq('status', 'cancelada'),
           supabase.from('rodada_participantes').select('id', { count: 'exact', head: true }).eq('rodada_id', r.id),
         ])
         const s = (av as { status: string }[]) ?? []

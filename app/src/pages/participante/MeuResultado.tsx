@@ -33,7 +33,7 @@ export default function MeuResultado() {
     ;(async () => {
       const [{ data: fx }, { data: avs }] = await Promise.all([
         supabase.from('faixas_classificacao').select('nome, minimo, maximo, ordem').eq('rodada_id', sel).order('ordem'),
-        supabase.from('avaliacoes').select('id, grupo, formulario_id').eq('rodada_id', sel).eq('avaliado_id', eu.id).in('grupo', ['gestor', 'auto']),
+        supabase.from('avaliacoes').select('id, grupo, formulario_id').eq('rodada_id', sel).eq('avaliado_id', eu.id).in('grupo', ['gestor', 'auto']).neq('status', 'cancelada'),
       ])
       setFaixas((fx as Faixa[]) ?? [])
       const av = (avs as { id: string; grupo: string; formulario_id: number }[]) ?? []

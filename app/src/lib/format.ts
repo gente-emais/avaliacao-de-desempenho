@@ -30,6 +30,7 @@ export const STATUS: Record<StatusAvaliacao, { rotulo: string; classe: string }>
   em_andamento: { rotulo: 'Em andamento', classe: 'info' },
   enviada: { rotulo: 'Aguardando revisão', classe: 'roxo' },
   concluida: { rotulo: 'Concluída', classe: 'ok' },
+  cancelada: { rotulo: 'Cancelada (movimentação)', classe: 'neutro' },
 }
 
 // Nome da tarefa conforme rodada e grupo
