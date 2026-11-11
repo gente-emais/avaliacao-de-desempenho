@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { rpc } from '../../lib/supabase'
 import { baixarCsv, data } from '../../lib/format'
 
@@ -139,25 +139,6 @@ export default function PainelEstrategico() {
         </section>
       </div>
 
-      <section className="card">
-        <div className="linha entre"><h2>Qualidade da liderança · por gestor</h2>
-          <span className="muted linha"><Ponto c="v" />no ritmo <Ponto c="a" />atenção <Ponto c="l" />atrasado ou fora do padrão</span></div>
-        <div className="tabela-box"><table style={{ minWidth: 980 }}>
-          <thead><tr><th>Gestor</th><th className="c">Time</th><th className="c">Contratação</th><th className="c">One a One (90 dias)</th><th className="c">Feedback registrado</th><th className="c">Concordância do time</th><th className="c">Avaliações enviadas</th><th className="c">Faixas que dá</th><th className="c">Índice de liderança</th></tr></thead>
-          <tbody>{c.gestores.map((g) => (
-            <tr key={g.id} className="clicavel" onClick={() => abrir(g.detalhe)}>
-              <td><strong>{g.nome}</strong></td><td className="c">{g.time}</td>
-              <td className="c"><Ponto c={sem(g.contr.p)} />{g.contr.t}</td>
-              <td className="c"><Ponto c={g.one >= 3 ? 'v' : g.one >= 1 ? 'a' : 'l'} />{g.one}</td>
-              <td className="c"><Ponto c={sem(g.fb.p)} />{g.fb.t}</td>
-              <td className="c">{g.conc.p == null ? '—' : <><Ponto c={sem(g.conc.p)} />{g.conc.p}%</>}</td>
-              <td className="c"><Ponto c={sem(g.av.p)} />{g.av.t}</td>
-              <td className="c">{g.faixas.alerta ? <span className="tag tl">{g.faixas.t}</span> : g.faixas.t}</td>
-              <td className="c">{g.indice == null ? <span className="muted">{g.respondentes ? 'menos de 3' : '—'}</span> : <><Ponto c={g.indice >= 3 ? 'v' : g.indice >= 2.5 ? 'a' : 'l'} />{fmt(g.indice, 1)}</>}</td>
-            </tr>
-          ))}</tbody>
-        </table></div>
-      </section>
 
       <div className="grade" style={{ ['--min' as string]: '320px' }}>
         <section className="card">
@@ -172,14 +153,20 @@ export default function PainelEstrategico() {
         </section>
 
         <section className="card">
-          <h2>Talentos e riscos</h2>
-          <p className="muted">Comparando {c.talentos.ano ?? '—'} com o ano anterior.</p>
-          {c.talentos.grupos.map((t) => (
-            <button key={t.nome} className="talento" onClick={() => abrir(t.detalhe)} style={{ background: t.bg, color: t.fg }}>
-              <b>{t.n}</b><span>{t.nome}</span><small>{t.desc}</small>
-            </button>
-          ))}
-          <span className="muted">O 9-box (desempenho × potencial) entra quando o critério de potencial for definido.</span>
+          <h2>9-box · talentos e riscos</h2>
+          <p className="muted">{c.nine.ano ? `Desempenho = faixa de ${c.nine.ano}. Potencial = trajetória de ${c.nine.anterior} para ${c.nine.ano}.` : 'Precisa de resultados em dois ciclos.'}</p>
+          <div className="nove">
+            <span className="eixo-y">Potencial →</span>
+            {c.nine.celulas.map((q) => (
+              <button key={q.id} className="nove-c" style={{ background: q.bg, color: q.fg }} onClick={() => abrir(q.detalhe)} title={q.desc}>
+                <b>{q.n}</b><span>{q.nome}</span>
+              </button>
+            ))}
+            <span />
+            <span className="eixo-x">Desempenho (faixa) →</span>
+          </div>
+          {c.nine.semHistorico > 0 && <span className="muted">{c.nine.semHistorico} {c.nine.semHistorico === 1 ? "pessoa" : "pessoas"} sem resultado no ciclo anterior {c.nine.semHistorico === 1 ? "fica" : "ficam"} fora do 9-box.</span>}
+          <span className="muted">Quando o critério de potencial for definido, ele substitui a trajetória no eixo vertical.</span>
         </section>
 
         <section className="card">
@@ -218,7 +205,6 @@ export default function PainelEstrategico() {
 function Barra({ p, alto }: { p: number | null; alto?: boolean }) {
   return <div className={`barra${alto ? ' alta' : ''}`}><i className={sem(p)} style={{ width: `${p ?? 0}%` }} /></div>
 }
-function Ponto({ c }: { c: string }): ReactNode { return <span className={`ponto-s ${c}`} aria-hidden="true" /> }
 
 // ---------- Cálculo dos indicadores (com o detalhamento de cada um) ----------
 export function calcular(d: Dados, area: string, gestorSel: string) {
@@ -378,18 +364,27 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
   const pdiTotais = { tot: pdiF.length, conc: pdiF.filter((x) => x.status === 'concluido').length,
     ht: pdiF.reduce((s, x) => s + Number(x.horas ?? 0), 0), hc: pdiF.filter((x) => x.status === 'concluido').reduce((s, x) => s + Number(x.horas ?? 0), 0) }
 
-  // Talentos e riscos (evolução entre os dois últimos anos com resultado)
+  // 9-box: desempenho = faixa no último ciclo; potencial = trajetória em relação ao ciclo anterior
   const [aT, aAnt] = anosRes
   const ordem = (r?: { faixa: string | null }) => (r ? iFaixa(r.faixa) : -1)
-  const pares = aT && aAnt ? pessoas.map((p) => ({ p, at: d.resultados.find((r) => r.ano === aT && r.pessoa === p.id), an: d.resultados.find((r) => r.ano === aAnt && r.pessoa === p.id) })).filter((x) => x.at && x.an) : []
   const topo = d.faixas.length - 1
-  const grupoT = (nomeG: string, desc: string, bg: string, fg: string, l: typeof pares) => ({ nome: nomeG, desc, bg, fg, n: l.length,
-    detalhe: { titulo: `${nomeG} · ${aAnt} → ${aT}`, colunas: ['Colaborador', 'Área', 'Gestor', String(aAnt), String(aT)], linhas: l.map((x) => [...linhaPessoa(x.p.id), x.an!.faixa ?? '—', x.at!.faixa ?? '—'] as Cel[]) } })
-  const talentos = { ano: aT, grupos: pares.length ? [
-    grupoT('Talentos consistentes', `${d.faixas[topo]?.nome} nos dois anos`, '#1e756a', '#ffffff', pares.filter((x) => ordem(x.at) === topo && ordem(x.an) === topo)),
-    grupoT('Em ascensão', 'subiram de faixa', '#d5f5ea', '#14604f', pares.filter((x) => ordem(x.at) > ordem(x.an))),
-    grupoT('Em queda', 'desceram de faixa', '#f8ddd3', '#8a3416', pares.filter((x) => ordem(x.at) < ordem(x.an))),
-  ] : [] }
+  const comAtual = aT ? pessoas.map((p) => ({ p, at: d.resultados.find((r) => r.ano === aT && r.pessoa === p.id), an: aAnt ? d.resultados.find((r) => r.ano === aAnt && r.pessoa === p.id) : undefined })).filter((x) => x.at) : []
+  const pares = comAtual.filter((x) => x.an)
+  const desemp = (x: (typeof pares)[number]) => { const o = ordem(x.at); return o >= topo ? 2 : o === topo - 1 ? 1 : 0 }
+  const poten = (x: (typeof pares)[number]) => { const a = ordem(x.at), b = ordem(x.an); return a > b || (a === topo && b === topo) ? 2 : a === b ? 1 : 0 }
+  const NOMES = [ // [potencial][desempenho]
+    [['Insuficiente', 'baixo desempenho e em queda', '#f8ddd3', '#8a3416'], ['Eficaz', 'bom desempenho, em queda', '#ffefab', '#5c4a00'], ['Comprometido', 'alto desempenho, em queda', '#d5f5ea', '#14604f']],
+    [['Questionável', 'baixo desempenho, estável', '#f8ddd3', '#8a3416'], ['Mantenedor', 'bom desempenho, estável', '#e0e9fc', '#2f4858'], ['Forte desempenho', 'alto desempenho, estável', '#4ed8b0', '#130c0e']],
+    [['Enigma', 'baixo desempenho, mas subindo', '#ffefab', '#5c4a00'], ['Forte potencial', 'bom desempenho e subindo', '#4ed8b0', '#130c0e'], ['Talento', 'Consolidado e consistente ou subindo', '#1e756a', '#ffffff']],
+  ]
+  const celulas = [2, 1, 0].flatMap((pt) => [0, 1, 2].map((ds) => {
+    const [nomeQ, desc, bg, fg] = NOMES[pt][ds]
+    const l = pares.filter((x) => poten(x) === pt && desemp(x) === ds)
+    return { id: `${pt}${ds}`, nome: nomeQ, desc, bg, fg, n: l.length,
+      detalhe: { titulo: `9-box · ${nomeQ}`, sub: desc, colunas: ['Colaborador', 'Área', 'Gestor', String(aAnt ?? ''), String(aT ?? '')],
+        linhas: l.map((x) => [...linhaPessoa(x.p.id), x.an!.faixa ?? '—', x.at!.faixa ?? '—'] as Cel[]) } }
+  }))
+  const nine = { ano: pares.length ? aT : undefined, anterior: aAnt, celulas, semHistorico: comAtual.length - pares.length }
 
   // Pontos de atenção
   const alertas: { tag: string; nivel: string; texto: string; detalhe: Detalhe }[] = []
@@ -415,5 +410,5 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
     })
   }
 
-  return { nome, jornada, kpis, funil, gargalo, evolucao, porArea, gestores, pdiFaixa, pdiTotais, talentos, alertas }
+  return { nome, jornada, kpis, funil, gargalo, evolucao, porArea, gestores, pdiFaixa, pdiTotais, nine, alertas }
 }

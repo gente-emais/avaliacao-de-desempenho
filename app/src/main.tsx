@@ -14,7 +14,6 @@ import MinhaAutoavaliacao from './pages/participante/MinhaAutoavaliacao'
 import MeuResultado from './pages/participante/MeuResultado'
 import Pdi from './pages/participante/Pdi'
 import OneAOne from './pages/participante/OneAOne'
-import Painel from './pages/rh/Painel'
 import Pessoas from './pages/rh/Pessoas'
 import Rodadas from './pages/rh/Rodadas'
 import Acompanhamento from './pages/rh/Acompanhamento'
@@ -52,12 +51,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="resultado" element={<MeuResultado />} />
             <Route path="pdi" element={<Pdi />} />
             <Route path="one-a-one" element={<OneAOne />} />
-            <Route path="rh" element={<Protegido rh><Painel /></Protegido>} />
+            <Route path="rh" element={<Protegido rh><PainelEstrategico /></Protegido>} />
             <Route path="rh/pessoas" element={<Protegido rh><Pessoas /></Protegido>} />
             <Route path="rh/rodadas" element={<Protegido rh><Rodadas /></Protegido>} />
             <Route path="rh/acompanhamento" element={<Protegido rh><Acompanhamento /></Protegido>} />
             <Route path="rh/resultados" element={<Protegido rh><Resultados /></Protegido>} />
-            <Route path="rh/estrategico" element={<Protegido rh><PainelEstrategico /></Protegido>} />
+            <Route path="rh/estrategico" element={<Navigate to="/rh" replace />} />
             <Route path="rh/configuracao" element={<Protegido rh><Configuracao /></Protegido>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
