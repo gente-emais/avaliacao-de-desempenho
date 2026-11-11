@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { GRUPO, STATUS, dataHora, nota, umAceite } from '../../lib/format'
+import { GRUPO, STATUS, dataHora, umAceite } from '../../lib/format'
 
 interface Pergunta {
   id: number; ordem: number; texto: string; tipo: 'escala' | 'aberta' | 'sim_nao' | 'escolha'
@@ -41,6 +41,7 @@ export default function Formulario() {
   const [erro, setErro] = useState('')
   const [notaRevisao, setNotaRevisao] = useState<number | null>(null)
   const [ajuste, setAjuste] = useState('')
+  const [faixasRev, setFaixasRev] = useState<{ nome: string; minimo: number; maximo: number }[]>([])
   const [comentario, setComentario] = useState('')
   const timers = useRef<Record<number, number>>({})
 
@@ -86,6 +87,8 @@ export default function Formulario() {
       // Revisão do gestor acima
       if (aval.status === 'enviada' && aval.avaliador.gestor_id === eu?.id) {
         setNotaRevisao(await rpc<number>('nota_da_avaliacao', { p_avaliacao: aval.id, p_so_nota: true }))
+        const { data: fx } = await supabase.from('faixas_classificacao').select('nome, minimo, maximo').eq('rodada_id', aval.rodada.id).order('ordem')
+        setFaixasRev(((fx as { nome: string; minimo: number; maximo: number }[]) ?? []).map((f) => ({ ...f, minimo: Number(f.minimo), maximo: Number(f.maximo) })))
       }
     }
     carregar()
@@ -133,7 +136,8 @@ export default function Formulario() {
 
   async function revisar() {
     if (!av) return
-    const valor = ajuste.trim() ? Number(ajuste.replace(',', '.')) : null
+    // ajuste por faixa: grava o início da faixa escolhida (sem mostrar números)
+    const valor = ajuste ? faixasRev.find((f) => f.nome === ajuste)?.minimo ?? null : null
     try {
       await rpc('revisar_avaliacao', { p_avaliacao: av.id, p_nota_ajustada: valor, p_comentario: comentario || null })
       nav('/', { replace: true })
@@ -157,6 +161,7 @@ export default function Formulario() {
   const podeAceitar = av.rodada.tipo === 'contratacao' && av.status === 'concluida' && !umAceite(av.aceite) &&
     (av.avaliado_id === eu?.id || (av.avaliador_id === eu?.id && av.avaliado.acesso_assistido))
 
+  const faixaCalc = notaRevisao == null ? null : faixasRev.find((f) => Math.round(notaRevisao * 100) / 100 >= f.minimo && Math.round(notaRevisao * 100) / 100 <= f.maximo)?.nome ?? null
   return (
     <>
       <div className="cabecalho">
@@ -215,7 +220,7 @@ export default function Formulario() {
                     {ops.map((o) => (
                       <button key={o.valor} type="button" role="radio" aria-checked={r.valor === Number(o.valor)} disabled={!editavel}
                         className={r.valor === Number(o.valor) ? 'sel' : ''} onClick={() => alterar(p.id, 'valor', Number(o.valor))}>
-                        {Number(o.valor)}<span>{o.rotulo}</span>
+                        {o.rotulo}
                       </button>
                     ))}
                   </div>
@@ -239,7 +244,7 @@ export default function Formulario() {
                   </label>
                 )}
                 {ref && p.tipo === 'escala' && ref.valor != null && (
-                  <span className="auto-ref">Autoavaliação: {Number(ref.valor)} · {ops.find((o) => Number(o.valor) === Number(ref.valor))?.rotulo}{ref.evidencia ? ` — "${ref.evidencia}"` : ''}</span>
+                  <span className="auto-ref">Autoavaliação: {ops.find((o) => Number(o.valor) === Number(ref.valor))?.rotulo}{ref.evidencia ? ` — "${ref.evidencia}"` : ''}</span>
                 )}
                 {ref && p.tipo === 'aberta' && ref.texto && <span className="auto-ref">Autoavaliação: "{ref.texto}"</span>}
               </fieldset>
@@ -261,16 +266,19 @@ export default function Formulario() {
       {revisando && (
         <section className="card">
           <h2>Revisão da nota</h2>
-          <p>Nota calculada pela avaliação de {av.avaliador.nome}: <strong>{nota(notaRevisao)}</strong></p>
+          <p>Classificação pela avaliação de {av.avaliador.nome}: <strong>{faixaCalc ?? '—'}</strong></p>
           <div className="grade" style={{ ['--min' as string]: '220px' }}>
-            <label className="campo">Nota ajustada (opcional)<small>Deixe vazio para manter. A original fica registrada.</small>
-              <input inputMode="decimal" placeholder="Ex.: 3,25" value={ajuste} onChange={(e) => setAjuste(e.target.value)} />
+            <label className="campo">Ajustar a classificação (opcional)<small>Deixe como está para manter. A original fica registrada.</small>
+              <select value={ajuste} onChange={(e) => setAjuste(e.target.value)}>
+                <option value="">Manter {faixaCalc ?? ''}</option>
+                {faixasRev.filter((f) => f.nome !== faixaCalc).map((f) => <option key={f.nome} value={f.nome}>{f.nome}</option>)}
+              </select>
             </label>
             <label className="campo">Comentário da revisão
               <textarea rows={3} value={comentario} onChange={(e) => setComentario(e.target.value)} />
             </label>
           </div>
-          <div><button className="primario" onClick={revisar}>{ajuste.trim() ? 'Salvar ajuste e concluir' : 'Confirmar nota'}</button></div>
+          <div><button className="primario" onClick={revisar}>{ajuste ? 'Salvar ajuste e concluir' : 'Confirmar classificação'}</button></div>
         </section>
       )}
     </>

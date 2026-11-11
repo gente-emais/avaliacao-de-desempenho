@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, PESSOA_COLS, type Pessoa, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { STATUS, iniciais, nota, umAceite } from '../../lib/format'
+import { STATUS, iniciais, umAceite } from '../../lib/format'
 import AvaliacoesPessoa from '../../components/AvaliacoesPessoa'
 
 interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; rodada: { id: string; nome: string; tipo: TipoRodada; status: string }; aceite: { aceito_em: string } | { aceito_em: string }[] | null }
@@ -67,7 +67,7 @@ export default function Equipe() {
                     c={a.rodada.tipo === 'contratacao' && a.status === 'concluida' && !umAceite(a.aceite) ? 'pend' : STATUS[a.status].classe} />
                 ))}
                 {auto.map((a) => <Linha key={a.id} k={a.rodada.tipo === 'feedback' ? 'Resposta ao feedback' : 'Autoavaliação'} v={STATUS[a.status].rotulo} c={STATUS[a.status].classe} />)}
-                {ultimo && <Linha k="Último resultado" v={`${nota(ultimo.nota_final)} · ${ultimo.faixa_nome ?? ''}`} c="neutro" />}
+                {ultimo && <Linha k="Último resultado" v={ultimo.faixa_nome ?? '—'} c="neutro" />}
                 {!minhas.length && !auto.length && !ultimo && <Linha k="Rodadas" v="Nenhuma aberta" c="neutro" />}
               </dl>
               {[...new Map(avs.filter((a) => a.avaliado_id === p.id).map((a) => [a.rodada.id, a.rodada])).values()].map((ro) => (
