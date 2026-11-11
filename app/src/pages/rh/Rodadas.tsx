@@ -35,6 +35,7 @@ export default function Rodadas() {
   const [nome, setNome] = useState('')
   const [ano, setAno] = useState(new Date().getFullYear())
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
+  const [salvando, setSalvando] = useState(false)
   const [contagem, setContagem] = useState<{ total: number; porPerfil: Record<string, number>; semGestor: number } | null>(null)
 
   async function carregar() {
@@ -59,6 +60,15 @@ export default function Rodadas() {
 
   async function salvar(abrir: boolean) {
     setMsg(null)
+    if (salvando) return
+    if (lista.some((r) => r.nome.trim().toLowerCase() === nome.trim().toLowerCase())) {
+      return setMsg({ t: `Já existe uma rodada chamada "${nome}". Use outro nome (ex.: "${nome} – simulação").`, c: 'erro' })
+    }
+    setSalvando(true)
+    try { await salvarRodada(abrir) } finally { setSalvando(false) }
+  }
+
+  async function salvarRodada(abrir: boolean) {
     // As etapas organizam a ordem da rodada; a EMAIS não trabalha com datas, então usamos a data de hoje como registro.
     const hoje = new Date().toISOString().slice(0, 10)
     const etapas: Etapa[] = ETAPAS[tipo].map((e) => ({ ...e, inicio: hoje, fim: hoje }))
@@ -88,7 +98,14 @@ export default function Rodadas() {
     const atual = ord.findIndex((e) => e.status === 'aberta')
     if (atual >= 0) await supabase.from('rodada_etapas').update({ status: 'fechada' }).eq('id', ord[atual].id!)
     if (ord[atual + 1]) await supabase.from('rodada_etapas').update({ status: 'aberta' }).eq('id', ord[atual + 1].id!)
-    else await supabase.from('rodadas').update({ status: 'encerrada' }).eq('id', r.id)
+    else {
+      await supabase.from('rodadas').update({ status: 'encerrada' }).eq('id', r.id)
+      // Ciclo Avaliativo: ao encerrar, as notas e faixas já ficam calculadas para liberar em Resultados
+      if (r.tipo === 'avaliativo') {
+        try { await rpc('calcular_resultados', { p_rodada: r.id }); setMsg({ t: `Rodada encerrada e resultados calculados. Libere as devolutivas em Resultados.`, c: 'ok' }) }
+        catch (e) { setMsg({ t: 'Rodada encerrada, mas o cálculo falhou: ' + (e as Error).message, c: 'erro' }) }
+      } else setMsg({ t: 'Rodada encerrada.', c: 'ok' })
+    }
     carregar()
   }
 
@@ -119,8 +136,8 @@ export default function Rodadas() {
           </div>
         )}
         <div className="linha">
-          <button className="primario" onClick={() => salvar(true)}>Abrir rodada e avisar</button>
-          <button onClick={() => salvar(false)}>Salvar rascunho</button>
+          <button className="primario" disabled={salvando} onClick={() => salvar(true)}>{salvando ? 'Abrindo…' : 'Abrir rodada e avisar'}</button>
+          <button disabled={salvando} onClick={() => salvar(false)}>Salvar rascunho</button>
         </div>
       </section>
 

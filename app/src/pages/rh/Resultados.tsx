@@ -21,7 +21,7 @@ export default function Resultados() {
   const rodada = rodadas.find((r) => r.id === rodadaId)
 
   useEffect(() => {
-    supabase.from('rodadas').select('*').eq('tipo', 'avaliativo').neq('status', 'rascunho').order('ano', { ascending: false }).then(({ data }) => {
+    supabase.from('rodadas').select('*').eq('tipo', 'avaliativo').neq('status', 'rascunho').order('ano', { ascending: false }).order('criado_em', { ascending: false }).then(({ data }) => {
       const l = (data as Rodada[]) ?? []
       setRodadas(l)
       if (!rodadaId && l[0]) setParams({ rodada: l[0].id })
@@ -74,7 +74,7 @@ export default function Resultados() {
         <div><div className="migalha">Visão RH</div><h1>Resultados das rodadas</h1></div>
         <div className="linha">
           <select value={rodadaId} onChange={(e) => setParams({ rodada: e.target.value })} aria-label="Rodada">
-            {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}{r.somente_leitura ? ' (histórico)' : ''}</option>)}
+            {rodadas.map((r) => <option key={r.id} value={r.id}>{r.nome}{r.somente_leitura ? ' (histórico)' : ` · ${r.status === 'aberta' ? 'aberta' : 'encerrada'}${r.resultado_liberado_em ? ' · liberada' : ''}`}</option>)}
           </select>
           {!rodada?.somente_leitura && <button onClick={() => acao('calcular_resultados')}>Recalcular notas</button>}
           {!rodada?.somente_leitura && !rodada?.resultado_liberado_em && <button className="primario" onClick={() => acao('liberar_resultados')}>Liberar devolutivas</button>}

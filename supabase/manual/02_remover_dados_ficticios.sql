@@ -14,7 +14,8 @@ delete from public.pdi_objetivos where pessoa_id in (select id from _ficticias);
 delete from public.rodadas where id in ('a0000000-0000-0000-0000-000000002025',
                                         'a0000000-0000-0000-0000-000000012026',
                                         'a0000000-0000-0000-0000-000000022026',
-                                        'a0000000-0000-0000-0000-000000032026'); -- Ciclo de Feedback 2026 (teste)
+                                        'a0000000-0000-0000-0000-000000032026',  -- Ciclo de Feedback 2026 (teste)
+                                        '24abeedd-6410-4121-9827-99686acd4301'); -- Ciclo Avaliativo 2026 duplicado
 -- Rodadas históricas de teste importadas pela tela Configuração > Importar resultados
 delete from public.rodadas where status = 'historica' and nome like '%(Mindsight)'
    and nome in ('Ciclo Avaliativo 2022 (Mindsight)', 'Ciclo Avaliativo 2023 (Mindsight)', 'Ciclo Avaliativo 2024 (Mindsight)');
