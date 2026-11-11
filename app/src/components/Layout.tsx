@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 
 export default function Layout() {
-  const { eu, ehRh, ehAdmin, temEquipe, sair } = useAuth()
+  const { eu, ehRh, ehAdmin, temEquipe, temAutoavaliacao, sair } = useAuth()
   return (
     <div className="app">
       <aside className="sidebar">
@@ -24,6 +24,7 @@ export default function Layout() {
         <nav className="nav" aria-label="Meu espaço">
           <span className="nav-titulo">Meu espaço</span>
           <NavLink to="/" end>O que fazer agora</NavLink>
+          {temAutoavaliacao && <NavLink to="/autoavaliacao">Minha autoavaliação</NavLink>}
           {temEquipe && <NavLink to="/equipe">Minha equipe</NavLink>}
           <NavLink to="/pdi">PDI</NavLink>
           <NavLink to="/one-a-one">One a One</NavLink>
