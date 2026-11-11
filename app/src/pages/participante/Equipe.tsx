@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, PESSOA_COLS, type Pessoa, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { STATUS, iniciais, nota } from '../../lib/format'
+import { STATUS, iniciais, nota, umAceite } from '../../lib/format'
 
-interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; rodada: { nome: string; tipo: TipoRodada; status: string }; aceite: { aceito_em: string }[] }
+interface Av { id: string; grupo: Grupo; status: StatusAvaliacao; avaliado_id: string; avaliador_id: string; rodada: { nome: string; tipo: TipoRodada; status: string }; aceite: { aceito_em: string } | { aceito_em: string }[] | null }
 interface Res { pessoa_id: string; nota_final: number | null; faixa_nome: string | null; rodada: { nome: string } }
 
 const TIPO_CURTO: Record<TipoRodada, string> = { contratacao: 'Contratação', avaliativo: 'Avaliação', feedback: 'Feedback' }
@@ -61,8 +61,8 @@ export default function Equipe() {
               <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 12px', fontSize: 13 }}>
                 {minhas.map((a) => (
                   <Linha key={a.id} k={TIPO_CURTO[a.rodada.tipo]}
-                    v={a.rodada.tipo === 'contratacao' && a.status === 'concluida' ? (a.aceite?.length ? 'Ciente' : 'Sem aceite') : STATUS[a.status].rotulo}
-                    c={a.rodada.tipo === 'contratacao' && a.status === 'concluida' && !a.aceite?.length ? 'pend' : STATUS[a.status].classe} />
+                    v={a.rodada.tipo === 'contratacao' && a.status === 'concluida' ? (umAceite(a.aceite) ? 'Ciente' : 'Sem aceite') : STATUS[a.status].rotulo}
+                    c={a.rodada.tipo === 'contratacao' && a.status === 'concluida' && !umAceite(a.aceite) ? 'pend' : STATUS[a.status].classe} />
                 ))}
                 {auto.map((a) => <Linha key={a.id} k={a.rodada.tipo === 'feedback' ? 'Resposta ao feedback' : 'Autoavaliação'} v={STATUS[a.status].rotulo} c={STATUS[a.status].classe} />)}
                 {ultimo && <Linha k="Último resultado" v={`${nota(ultimo.nota_final)} · ${ultimo.faixa_nome ?? ''}`} c="neutro" />}

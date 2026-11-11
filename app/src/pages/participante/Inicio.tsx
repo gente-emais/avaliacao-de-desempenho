@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { STATUS, dataHora, tituloTarefa } from '../../lib/format'
+import { STATUS, dataHora, tituloTarefa, umAceite } from '../../lib/format'
 
 interface Tarefa {
   id: string
@@ -13,7 +13,7 @@ interface Tarefa {
   rodada: { nome: string; tipo: TipoRodada; status: string; etapas: { fim: string; status: string }[] }
   avaliado: { nome: string; acesso_assistido: boolean }
   avaliador: { nome: string; gestor_id: string | null }
-  aceite: { aceito_em: string }[] | null
+  aceite: { aceito_em: string } | { aceito_em: string }[] | null
 }
 
 const SELECT = `id, grupo, status, avaliado_id, avaliador_id,
@@ -42,13 +42,13 @@ export default function Inicio() {
     setTarefas((t.data as unknown as Tarefa[]) ?? [])
     setRevisoes(((r.data as unknown as Tarefa[]) ?? []).filter((x) => x.avaliador?.gestor_id === eu.id))
     // contratações que eu (ou, no assistido, eu como gestor) preciso dar aceite
-    setAceites(((c.data as unknown as Tarefa[]) ?? []).filter((x) => !x.aceite?.length && (x.avaliado_id === eu.id || (x.avaliador_id === eu.id && x.avaliado?.acesso_assistido))))
+    setAceites(((c.data as unknown as Tarefa[]) ?? []).filter((x) => !umAceite(x.aceite) && (x.avaliado_id === eu.id || (x.avaliador_id === eu.id && x.avaliado?.acesso_assistido))))
     setCarregando(false)
   }
   useEffect(() => { carregar() }, [eu?.id])
 
   async function aceitar(id: string) {
-    try { await rpc('dar_aceite', { p_avaliacao: id }); setMsg('Aceite registrado.'); carregar() } catch (e) { setMsg((e as Error).message) }
+    try { await rpc('dar_aceite', { p_avaliacao: id }); setAceites((l) => l.filter((x) => x.id !== id)); setMsg('Aceite registrado. Obrigado!'); carregar() } catch (e) { setMsg((e as Error).message) }
   }
 
   return (

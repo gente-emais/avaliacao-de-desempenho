@@ -54,3 +54,8 @@ export function baixarCsv(nome: string, linhas: (string | number | null | undefi
   a.click()
   URL.revokeObjectURL(a.href)
 }
+
+// O aceite é 1 por avaliação: o Supabase devolve um objeto (ou null), não uma lista. Aceita os dois formatos.
+export function umAceite<T>(a: T | T[] | null | undefined): T | null {
+  return Array.isArray(a) ? a[0] ?? null : a ?? null
+}

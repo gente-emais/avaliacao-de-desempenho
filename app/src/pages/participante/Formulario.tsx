@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { GRUPO, STATUS, dataHora, nota } from '../../lib/format'
+import { GRUPO, STATUS, dataHora, nota, umAceite } from '../../lib/format'
 
 interface Pergunta {
   id: number; ordem: number; texto: string; tipo: 'escala' | 'aberta' | 'sim_nao' | 'escolha'
@@ -18,7 +18,7 @@ interface Avaliacao {
   rodada: { id: string; nome: string; tipo: TipoRodada; status: string }
   avaliado: { nome: string; cargo: string | null; acesso_assistido: boolean }
   avaliador: { nome: string; gestor_id: string | null }
-  aceite: { aceito_em: string; em_nome_de: boolean }[] | null
+  aceite: { aceito_em: string; em_nome_de: boolean } | { aceito_em: string; em_nome_de: boolean }[] | null
 }
 interface Opcao { escala_id: number; valor: number; rotulo: string }
 type Mapa = Record<number, Resposta>
@@ -154,7 +154,7 @@ export default function Formulario() {
     : av.grupo === 'lider' ? `Avaliação do seu gestor · ${av.avaliado.nome}`
     : `${GRUPO[av.grupo]} · ${av.avaliado.nome}`
   const pct = total.length ? Math.round((respondidas.length / total.length) * 100) : 0
-  const podeAceitar = av.rodada.tipo === 'contratacao' && av.status === 'concluida' && !av.aceite?.length &&
+  const podeAceitar = av.rodada.tipo === 'contratacao' && av.status === 'concluida' && !umAceite(av.aceite) &&
     (av.avaliado_id === eu?.id || (av.avaliador_id === eu?.id && av.avaliado.acesso_assistido))
 
   return (
@@ -189,7 +189,7 @@ export default function Formulario() {
           <span className="muted">Registrado em {dataHora(registroGestor.data)}</span>
         </section>
       )}
-      {av.aceite?.[0] && <div className="aviso ok">Aceite registrado em {dataHora(av.aceite[0].aceito_em)}{av.aceite[0].em_nome_de ? ' pelo gestor, em nome do colaborador' : ''}.</div>}
+      {umAceite(av.aceite) && <div className="aviso ok">Aceite registrado em {dataHora(umAceite(av.aceite)!.aceito_em)}{umAceite(av.aceite)!.em_nome_de ? ' pelo gestor, em nome do colaborador' : ''}.</div>}
       {podeAceitar && (
         <div className="aviso info linha entre">
           <span>Leia a contratação abaixo e confirme.</span>
