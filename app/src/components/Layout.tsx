@@ -14,6 +14,7 @@ export default function Layout() {
           <nav className="nav" aria-label="Visão RH">
             <span className="nav-titulo">Visão RH</span>
             <NavLink to="/rh" end>Painel</NavLink>
+            <NavLink to="/rh/estrategico">Painel estratégico</NavLink>
             <NavLink to="/rh/pessoas">Base de colaboradores</NavLink>
             <NavLink to="/rh/rodadas">Rodadas</NavLink>
             <NavLink to="/rh/acompanhamento">Acompanhamento</NavLink>

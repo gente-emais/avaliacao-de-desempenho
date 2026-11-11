@@ -20,6 +20,7 @@ import Rodadas from './pages/rh/Rodadas'
 import Acompanhamento from './pages/rh/Acompanhamento'
 import Resultados from './pages/rh/Resultados'
 import Configuracao from './pages/rh/Configuracao'
+import PainelEstrategico from './pages/rh/PainelEstrategico'
 
 function Protegido({ rh, children }: { rh?: boolean; children: React.ReactNode }) {
   const { carregando, sessao, eu, ehRh } = useAuth()
@@ -56,6 +57,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="rh/rodadas" element={<Protegido rh><Rodadas /></Protegido>} />
             <Route path="rh/acompanhamento" element={<Protegido rh><Acompanhamento /></Protegido>} />
             <Route path="rh/resultados" element={<Protegido rh><Resultados /></Protegido>} />
+            <Route path="rh/estrategico" element={<Protegido rh><PainelEstrategico /></Protegido>} />
             <Route path="rh/configuracao" element={<Protegido rh><Configuracao /></Protegido>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
