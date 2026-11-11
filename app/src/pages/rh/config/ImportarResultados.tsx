@@ -21,7 +21,9 @@ interface Previa {
   lidas: number; validas: number; encontradas: number; novas: number; gravado: boolean; rodada_existente: boolean
   erros: { linha: number; nome: string | null; erro: string }[]
   faixas: { faixa: string; pessoas: number; menor: number | null; maior: number | null }[]
+  divergentes?: { linha: number; nome: string | null; nota: number; faixa: string; pela_nota: string }[]
 }
+const virgula = (n: number) => Number(n).toFixed(2).replace('.', ',')
 
 export default function ImportarResultados() {
   const [nome, setNome] = useState('')
@@ -161,6 +163,20 @@ export default function ImportarResultados() {
               {previa.rodada_existente && <div className="aviso erro">Já existe uma rodada com esse nome. Mude o nome para importar.</div>}
               <h3>Como vão ficar as faixas</h3>
               <div className="linha">{previa.faixas.map((f) => <span key={f.faixa} className="pill roxo" style={{ fontSize: 13 }}>{f.faixa}: {f.pessoas}</span>)}</div>
+              {(previa.divergentes?.length ?? 0) > 0 && (
+                <>
+                  <div className="aviso erro">
+                    {previa.divergentes!.length} pessoa(s) com nota que não bate com a faixa escolhida no de/para
+                    (régua: 0,00–1,99 A desenvolver · 2,00–2,99 Em desenvolvimento · 3,00–3,49 Desenvolvido · 3,50–4,00 Consolidado).
+                    Confira o de/para do passo 3 antes de importar.
+                  </div>
+                  <div className="tabela-box"><table style={{ minWidth: 520 }}>
+                    <thead><tr><th>Linha</th><th>Nome</th><th>Nota</th><th>Faixa do de/para</th><th>Faixa pela nota</th></tr></thead>
+                    <tbody>{previa.divergentes!.map((d) => <tr key={d.linha}><td>{d.linha + 1}</td><td>{d.nome}</td><td>{virgula(d.nota)}</td><td>{d.faixa}</td><td><strong>{d.pela_nota}</strong></td></tr>)}</tbody>
+                  </table></div>
+                </>
+              )}
+              {previa.divergentes?.length === 0 && <div className="aviso ok">Todas as notas batem com a régua de faixas.</div>}
               {previa.erros.length > 0 && (
                 <div className="tabela-box"><table style={{ minWidth: 480 }}>
                   <thead><tr><th>Linha</th><th>Nome</th><th>Erro</th></tr></thead>
