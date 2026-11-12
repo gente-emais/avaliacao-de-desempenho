@@ -12,14 +12,17 @@ type PessoaLista = Pessoa & { user_id: string | null }
 
 const COLUNAS: [string, string][] = [
   ['cpf', 'CPF'], ['nome', 'Nome'], ['email', 'E-mail'], ['cargo', 'Cargo'], ['area', 'Área'],
-  ['perfil', 'Perfil de avaliação'], ['cpf_gestor', 'CPF do gestor'], ['cpf_gestor_secundario', 'CPF do gestor secundário'],
+  ['perfil', 'Perfil de avaliação'], ['cpf_gestor', 'CPF do gestor'], ['gestor_nome', 'Nome do gestor'],
+  ['cpf_gestor_secundario', 'CPF do gestor secundário'], ['gestor2_nome', 'Nome do gestor secundário'],
   ['cpf_bp', 'CPF do BP'], ['acesso_assistido', 'Acesso assistido (S/N)'],
 ]
 const normal = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
 const SINONIMOS: Record<string, string> = Object.fromEntries([
   ...COLUNAS.map(([k, r]) => [normal(r), k]),
   ['email', 'email'], ['perfil', 'perfil'], ['cpfgestor', 'cpf_gestor'], ['gestor', 'cpf_gestor'],
-  ['gestorsecundario', 'cpf_gestor_secundario'], ['bp', 'cpf_bp'], ['acessoassistido', 'acesso_assistido'], ['assistido', 'acesso_assistido'], ['papel', 'papel'],
+  ['gestorsecundario', 'cpf_gestor_secundario'], ['cpfgestornivel', 'cpf_gestor_secundario'], ['cpfdogestornivel', 'cpf_gestor_secundario'],
+  ['nomedogestor', 'gestor_nome'], ['nomegestor', 'gestor_nome'], ['gestordireto', 'gestor_nome'], ['nomedogestordireto', 'gestor_nome'],
+  ['nomedogestorsecundario', 'gestor2_nome'], ['nomegestorsecundario', 'gestor2_nome'], ['gestornivel', 'gestor2_nome'], ['nomedogestornivel', 'gestor2_nome'], ['bp', 'cpf_bp'], ['acessoassistido', 'acesso_assistido'], ['assistido', 'acesso_assistido'], ['papel', 'papel'],
 ])
 const SITUACAO: Record<string, [string, string]> = {
   novo: ['Novo', 'info'], alterado: ['Alterado', 'info'], aviso: ['Aviso', 'pend'], erro: ['Erro', 'erro'], inativar: ['Não veio na planilha', 'pend'],
@@ -58,7 +61,7 @@ export default function Pessoas() {
   }, [])
 
   function baixarModelo() {
-    const ws = XLSX.utils.aoa_to_sheet([COLUNAS.map(([, r]) => r), ['12345678909', 'Nome Sobrenome', 'nome@emais.com.br', 'Analista', 'Engenharia', 'Tático', '98765432100', '', '', 'N']])
+    const ws = XLSX.utils.aoa_to_sheet([COLUNAS.map(([, r]) => r), ['12345678909', 'Nome Sobrenome', 'nome@emais.com.br', 'Analista', 'Engenharia', 'Tático', '', 'Fulano de Tal', '', '', '', 'N']])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Pessoas')
     XLSX.writeFile(wb, 'modelo_pessoas_emais.xlsx')
@@ -71,6 +74,12 @@ export default function Pessoas() {
     const mapeadas = bruto.map((l) => {
       const o: Record<string, string> = {}
       Object.entries(l).forEach(([k, v]) => { const chave = SINONIMOS[normal(k)]; if (chave) o[chave] = String(v ?? '').trim() })
+      // Se veio nome (letras) na coluna de CPF do gestor, trata como nome
+      if (/[a-zA-Z]/.test(o.cpf_gestor ?? '')) { o.gestor_nome = o.gestor_nome || o.cpf_gestor; o.cpf_gestor = '' }
+      if (/[a-zA-Z]/.test(o.cpf_gestor_secundario ?? '')) { o.gestor2_nome = o.gestor2_nome || o.cpf_gestor_secundario; o.cpf_gestor_secundario = '' }
+      // E o contrário: só números na coluna de nome vira CPF
+      if (o.gestor_nome && !/[a-zA-Z]/.test(o.gestor_nome) && !o.cpf_gestor) { o.cpf_gestor = o.gestor_nome; o.gestor_nome = '' }
+      if (o.gestor2_nome && !/[a-zA-Z]/.test(o.gestor2_nome) && !o.cpf_gestor_secundario) { o.cpf_gestor_secundario = o.gestor2_nome; o.gestor2_nome = '' }
       return o
     }).filter((o) => Object.values(o).some(Boolean))
     if (!mapeadas.length || !('cpf' in mapeadas[0])) { setMsg({ t: 'Não encontrei a coluna CPF. Use a planilha modelo.', c: 'erro' }); return }
@@ -193,6 +202,7 @@ export default function Pessoas() {
             </label>
             {arquivo && <div className="aviso ok">{arquivo} · {linhas.length} linhas lidas</div>}
             <div className="muted">Colunas: {COLUNAS.map(([, c]) => c).join(' · ')}</div>
+            <div className="muted">Gestor e gestor secundário: informe o CPF <b>ou</b> o nome completo. Se vierem os dois, vale o CPF.</div>
           </section>
           <section className="card">
             <h2>2. Confira antes de gravar</h2>
