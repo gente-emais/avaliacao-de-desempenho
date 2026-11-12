@@ -16,7 +16,7 @@ const STATUS_PDI = { nao_iniciado: ['Não iniciado', 'neutro'], em_andamento: ['
 const ANO = new Date().getFullYear()
 
 const COMO_PDI: Explicacao = {
-  resumo: 'O PDI (Plano de Desenvolvimento Individual) reúne o que você vai fazer para se desenvolver: cursos, leituras, projetos, congressos e imersões. Ele nasce, principalmente, dos combinados do Ciclo de Feedback.',
+  resumo: 'O PDI (Plano de Desenvolvimento Individual) reúne o que você vai fazer para se desenvolver: cursos, leituras, projetos, congressos e imersões. Ele pode nascer em qualquer etapa do processo, sempre que surgir uma lacuna ou uma oportunidade de desenvolvimento.',
   passos: [
     { titulo: 'Crie um objetivo', quem: 'Você', texto: 'Clique em "+ Novo objetivo" e dê um nome claro, por exemplo "Melhorar a comunicação com clientes". Escolha o tipo: Desenvolvimento (evoluir no cargo atual) ou Carreira (preparar-se para um próximo passo).' },
     { titulo: 'Defina prazo e esforço', quem: 'Você', texto: 'Informe as datas de início e fim, a carga horária prevista em horas e a competência da EMAIS que esse objetivo desenvolve. Na descrição, conte o que você quer alcançar.' },

@@ -37,7 +37,7 @@ const EXPLICA: Record<TipoRodada, Explicacao> = {
     ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado. Depois vem o Ciclo de Feedback, que fecha a entrega do ciclo.',
   },
   feedback: {
-    resumo: 'É a etapa final do ano, depois do Ciclo Avaliativo: a conversa em que o gestor dá o retorno sobre o seu resultado e vocês combinam os próximos passos.',
+    resumo: 'É a etapa final do processo de avaliação, depois do Ciclo Avaliativo: a conversa em que o gestor dá o retorno sobre o seu resultado e vocês combinam os próximos passos.',
     passos: [
       { titulo: 'Conversa de feedback', quem: 'Você e seu gestor', texto: 'Com o resultado do Ciclo Avaliativo em mãos, o gestor conversa com você sobre seus pontos fortes e o que você pode desenvolver.' },
       { titulo: 'Registro dos acordos', quem: 'Seu gestor', texto: 'O gestor registra no sistema os pontos conversados e os acordos feitos.' },
