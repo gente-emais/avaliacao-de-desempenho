@@ -32,7 +32,6 @@ const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: st
       { titulo: 'Pré-work', quem: 'Você', texto: 'Algumas perguntas rápidas sobre você, como escolaridade e formação. Elas vêm junto com a sua autoavaliação.' },
       { titulo: 'Autoavaliação', quem: 'Você', texto: 'Em cada competência, escolha a faixa que melhor descreve como você atuou no período e comente com exemplos reais. Dica: o Diário de bordo ajuda a lembrar suas entregas.' },
       { titulo: 'Avaliação do gestor', quem: 'Seu gestor', texto: 'Seu gestor avalia você nas mesmas competências e registra a percepção dele sobre o seu potencial. Você não precisa fazer nada nesta etapa.' },
-      { titulo: 'Pares e equipe', quem: 'Conforme o seu perfil', texto: 'Em alguns perfis, colegas do mesmo nível também se avaliam. Se você tem equipe, ela avalia você como líder: as respostas são anônimas e só aparecem com pelo menos 3 respondentes.' },
       { titulo: 'Devolutiva', quem: 'Você e seu gestor', texto: 'Conversa para alinhar o resultado, reconhecer seus pontos fortes e combinar o que desenvolver. Os combinados podem virar ações do seu PDI.' },
     ],
     ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado.',
