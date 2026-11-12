@@ -232,3 +232,9 @@ tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: #f6f9ff; }
 .mini-faixas { display: flex; gap: 2px; height: 18px; border-radius: 4px; overflow: hidden; }
 .mini-faixas span { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 .ano-titulo { font-size: 20px; font-weight: 800; color: var(--cinza-verde); margin-top: 6px; }
+.trilha { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.passo { display: flex; flex-direction: column; gap: 10px; }
+.passo-num { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; background: var(--verde-escuro); color: #fff; }
+.passo-num.off { background: var(--gelo); color: var(--cinza-verde); }
+.passo .etapa { flex: 1; }
+.etapa.continuo { flex-direction: row; justify-content: space-between; align-items: center; }

@@ -77,15 +77,26 @@ export default function PainelEstrategico() {
       <Cabecalho />
 
       <section className="card">
-        <div className="linha entre"><h2>Jornada da AVD {ano} · gestão à vista de cada etapa</h2><span className="muted">Clique em uma etapa para ver o detalhe</span></div>
-        <div className="jornada">
-          {c.jornada.map((j) => (
-            <button key={j.chave} className="etapa" onClick={() => abrir(j.detalhe)} disabled={j.pct == null && !j.detalhe.linhas.length}>
-              <span className="etapa-n">{j.quando}</span>
-              <strong>{j.nome}</strong>
-              <span className="etapa-p">{j.pct == null ? '—' : `${j.pct}%`}</span>
-              <Barra p={j.pct} />
-              <span className={`tag t${sem(j.pct)}`}>{j.resumo}</span>
+        <div className="linha entre"><h2>Jornada da AVD · gestão à vista de cada etapa</h2><span className="muted">Clique em uma etapa para ver o detalhe</span></div>
+        <div className="trilha">
+          {c.jornada.map((j, i) => (
+            <div key={j.chave} className="passo">
+              <span className={`passo-num${j.pct == null ? ' off' : ''}`}>{i + 1}</span>
+              <button className="etapa" onClick={() => abrir(j.detalhe)} disabled={j.pct == null && !j.detalhe.linhas.length}>
+                <strong style={{ fontSize: 17 }}>{j.nome}</strong>
+                <span className="muted">{j.desc}</span>
+                <span className="etapa-p">{j.pct == null ? '—' : `${j.pct}%`}</span>
+                <Barra p={j.pct} />
+                <span className={`tag t${sem(j.pct)}`}>{j.resumo}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="grade" style={{ ['--min' as string]: '280px' }}>
+          {c.continuos.map((j) => (
+            <button key={j.chave} className="etapa continuo" onClick={() => abrir(j.detalhe)}>
+              <span><span className="etapa-n">Contínuo</span><br /><strong>{j.nome}</strong></span>
+              <span style={{ textAlign: 'right' }}><span className="etapa-p" style={{ fontSize: 24 }}>{j.pct == null ? '—' : `${j.pct}%`}</span><br /><span className={`tag t${sem(j.pct)}`}>{j.resumo}</span></span>
             </button>
           ))}
         </div>
@@ -239,24 +250,22 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
       .map((a) => [nome(a.avaliado), P(dono(a))?.area ?? '—', rot[a.grupo] ?? a.grupo, nome(a.avaliador), STATUS_TXT[a.status] ?? a.status]),
   })
 
+  // Ordem fixa da jornada: Contratação → Ciclo Avaliativo (com a devolutiva) → Ciclo de Feedback; One a One e PDI são contínuos
   const jornada = [
-    { chave: 'contr', quando: 'Etapa 1', nome: 'Contratação', pct: rodada('contratacao') ? pct(contrOk, contr.length) : null,
-      resumo: rodada('contratacao') ? `${contrOk} de ${contr.length} aceites` : 'sem rodada no ano',
+    { chave: 'contr', quando: '', desc: 'Gestor registra os acordos e o colaborador dá o aceite', nome: 'Contratação de Desempenho', pct: rodada('contratacao') ? pct(contrOk, contr.length) : null,
+      resumo: rodada('contratacao') ? `${contrOk} de ${contr.length} aceites` : 'ainda não aberto',
       detalhe: { titulo: 'Contratação de Desempenho', colunas: ['Colaborador', 'Área', 'Gestor', 'Situação'],
         linhas: contr.map((a) => [...linhaPessoa(a.avaliado), a.status !== 'concluida' ? 'Gestor não registrou' : a.aceite ? 'Aceite dado' : 'Aguardando aceite'] as Cel[]).sort((a, b) => String(a[3]).localeCompare(String(b[3]))) } },
-    { chave: 'one', quando: 'Contínuo', nome: 'One a One', pct: pct(gestoresMes, gestoresIds.length), resumo: `${gestoresMes} de ${gestoresIds.length} gestores no mês`,
+    { chave: 'av', quando: '', desc: 'Pré-work, autoavaliação, gestor, time, pares e devolutiva', nome: 'Ciclo Avaliativo', pct: rAva ? pct(ava.filter((a) => feito(a.status)).length, ava.length) : null,
+      resumo: rAva ? `${ava.filter((a) => feito(a.status)).length} de ${ava.length}${rAva.liberado ? ' · devolutiva liberada' : resAno.length ? ' · resultado calculado' : ''}` : 'ainda não aberto', detalhe: detAv('Ciclo Avaliativo', ava, GRUPO_AV) },
+    { chave: 'fb', quando: '', desc: 'Gestor registra o feedback e o colaborador responde', nome: 'Ciclo de Feedback', pct: rodada('feedback') ? pct(fb.filter((a) => feito(a.status)).length, fb.length) : null,
+      resumo: rodada('feedback') ? `${fb.filter((a) => feito(a.status)).length} de ${fb.length}` : 'ainda não aberto', detalhe: detAv('Ciclo de Feedback', fb, GRUPO_FB) },
+  ]
+  const continuos = [
+    { chave: 'one', quando: 'Contínuo', desc: '', nome: 'One a One', pct: pct(gestoresMes, gestoresIds.length), resumo: `${gestoresMes} de ${gestoresIds.length} gestores no mês`,
       detalhe: { titulo: 'One a One · encontros por gestor', sub: 'Gestores com time nos filtros atuais', colunas: ['Gestor', 'Time', 'Encontros (90 dias)', 'Último encontro'],
         linhas: gestoresIds.map((g) => [nome(g), pessoas.filter((p) => p.gestor_id === g).length, enc.filter((e) => e.gestor === g && DIAS(e.data) <= 90).length, ultimo(g) ? data(ultimo(g)) : 'nunca'] as Cel[]).sort((a, b) => Number(a[2]) - Number(b[2])) } },
-    { chave: 'fb', quando: 'Etapa 2', nome: 'Ciclo de Feedback', pct: rodada('feedback') ? pct(fb.filter((a) => feito(a.status)).length, fb.length) : null,
-      resumo: rodada('feedback') ? `${fb.filter((a) => feito(a.status)).length} de ${fb.length}` : 'sem rodada no ano', detalhe: detAv('Ciclo de Feedback', fb, GRUPO_FB) },
-    { chave: 'av', quando: 'Etapa 3', nome: 'Ciclo Avaliativo', pct: rAva ? pct(ava.filter((a) => feito(a.status)).length, ava.length) : null,
-      resumo: rAva ? `${ava.filter((a) => feito(a.status)).length} de ${ava.length}` : 'sem rodada no ano', detalhe: detAv('Ciclo Avaliativo', ava, GRUPO_AV) },
-    { chave: 'dev', quando: 'Etapa 4', nome: 'Devolutiva',
-      pct: rAva?.liberado ? pct(resAno.length, pessoas.length) : null,
-      resumo: rAva?.liberado ? `${resAno.length} resultados liberados` : resAno.length ? 'calculada, não liberada' : 'não iniciada',
-      detalhe: { titulo: `Resultados ${d.ano}`, colunas: ['Colaborador', 'Área', 'Gestor', 'Faixa', 'Nota', 'Autoavaliação'],
-        linhas: resAno.map((r) => [...linhaPessoa(r.pessoa), r.faixa ?? '—', fmt(r.nota), fmt(r.auto)] as Cel[]) } },
-    { chave: 'pdi', quando: 'Contínuo', nome: 'PDI', pct: pct(comPdi, pessoas.length), resumo: `${comPdi} de ${pessoas.length} com PDI`,
+    { chave: 'pdi', quando: 'Contínuo', desc: '', nome: 'PDI', pct: pct(comPdi, pessoas.length), resumo: `${comPdi} de ${pessoas.length} com PDI`,
       detalhe: { titulo: `PDI ${d.ano} por pessoa`, colunas: ['Colaborador', 'Área', 'Gestor', 'Objetivos', 'Concluídos'],
         linhas: pessoas.map((p) => { const o = d.pdi.filter((x) => x.pessoa === p.id); return [p.nome, p.area ?? '—', nome(p.gestor_id), o.length, o.filter((x) => x.status === 'concluido').length] as Cel[] }).sort((a, b) => Number(a[3]) - Number(b[3])) } },
   ]
@@ -410,5 +419,5 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
     })
   }
 
-  return { nome, jornada, kpis, funil, gargalo, evolucao, porArea, gestores, pdiFaixa, pdiTotais, nine, alertas }
+  return { nome, jornada, continuos, kpis, funil, gargalo, evolucao, porArea, gestores, pdiFaixa, pdiTotais, nine, alertas }
 }
