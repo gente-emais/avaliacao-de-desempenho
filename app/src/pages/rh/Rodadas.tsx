@@ -117,6 +117,32 @@ export default function Rodadas() {
     } catch (e) { setMsg({ t: (e as Error).message, c: 'erro' }) }
   }
 
+  // Encerrar a qualquer momento: fecha a etapa em andamento e, no Ciclo Avaliativo, calcula os resultados
+  async function encerrarRodada(r: RodadaCompleta) {
+    if (!window.confirm(`Encerrar "${r.nome}" agora? Ninguém mais consegue preencher até você reabrir. Dá para reabrir quando precisar.`)) return
+    const atual = r.etapas.find((e) => e.status === 'aberta')
+    if (atual) await supabase.from('rodada_etapas').update({ status: 'fechada' }).eq('id', atual.id!)
+    const { error } = await supabase.from('rodadas').update({ status: 'encerrada' }).eq('id', r.id)
+    if (error) return setMsg({ t: error.message, c: 'erro' })
+    if (r.tipo === 'avaliativo') {
+      try { await rpc('calcular_resultados', { p_rodada: r.id }); setMsg({ t: 'Rodada encerrada e resultados calculados. Libere as devolutivas em Resultados.', c: 'ok' }) }
+      catch (e) { setMsg({ t: 'Rodada encerrada, mas o cálculo falhou: ' + (e as Error).message, c: 'erro' }) }
+    } else setMsg({ t: 'Rodada encerrada. Você pode reabrir quando precisar.', c: 'ok' })
+    carregar()
+  }
+
+  // Reabrir: volta a aceitar respostas; retoma a etapa onde parou (ou a última, se todas foram fechadas)
+  async function reabrirRodada(r: RodadaCompleta) {
+    if (!window.confirm(`Reabrir "${r.nome}"? As pessoas voltam a conseguir preencher o que estiver pendente. O que já foi concluído continua salvo.`)) return
+    const ord = [...r.etapas].sort((a, b) => a.ordem - b.ordem)
+    const etapa = ord.find((e) => e.status !== 'fechada') ?? ord[ord.length - 1]
+    if (etapa) await supabase.from('rodada_etapas').update({ status: 'aberta' }).eq('id', etapa.id!)
+    const { error } = await supabase.from('rodadas').update({ status: 'aberta' }).eq('id', r.id)
+    if (error) return setMsg({ t: error.message, c: 'erro' })
+    setMsg({ t: `Rodada reaberta${etapa ? ` na etapa "${etapa.nome}"` : ''}.${r.tipo === 'avaliativo' ? ' Ao encerrar de novo, os resultados são recalculados.' : ''}`, c: 'ok' })
+    carregar()
+  }
+
   async function avancarEtapa(r: RodadaCompleta) {
     const ord = [...r.etapas].sort((a, b) => a.ordem - b.ordem)
     const atual = ord.findIndex((e) => e.status === 'aberta')
@@ -208,7 +234,9 @@ export default function Rodadas() {
                     {r.status === 'rascunho' && <button className="primario pequeno" onClick={() => abrirRodada(r.id)}>Abrir rodada</button>}
                     {r.status !== 'rascunho' && r.status !== 'historica' && <Link className="botao pequeno" to={`/rh/acompanhamento?rodada=${r.id}`}>Status</Link>}
                     {r.tipo === 'avaliativo' && r.status !== 'rascunho' && <Link className="botao pequeno" to={`/rh/resultados?rodada=${r.id}`}>Resultados</Link>}
-                    {r.status === 'aberta' && <button className="pequeno" onClick={() => avancarEtapa(r)}>{r.etapas.findIndex((e) => e.status === 'aberta') === r.etapas.length - 1 ? 'Encerrar rodada' : 'Fechar etapa'}</button>}
+                    {r.status === 'aberta' && atual && ord.indexOf(atual) < ord.length - 1 && <button className="pequeno" onClick={() => avancarEtapa(r)}>Fechar etapa</button>}
+                    {r.status === 'aberta' && <button className="pequeno" onClick={() => encerrarRodada(r)}>Encerrar rodada</button>}
+                    {r.status === 'encerrada' && <button className="primario pequeno" onClick={() => reabrirRodada(r)}>Reabrir rodada</button>}
                   </div>
                 </article>
               )
