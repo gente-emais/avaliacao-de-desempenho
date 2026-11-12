@@ -181,7 +181,6 @@ export default function Pessoas() {
   const r = previa?.resumo ?? {}
   const validas = previa ? previa.lidas - previa.rejeitadas : 0
 
-  const Pessoa2 = ({ id }: { id: string | null }) => { const g = id ? porId.get(id) : null; return g ? <>{g.nome}<div className="muted">{g.email ?? ''}</div></> : <span className="muted">—</span> }
 
   return (
     <>
@@ -291,23 +290,22 @@ export default function Pessoas() {
       )}
 
       <section className="card" style={{ padding: 8 }}>
-        <div className="tabela-box" style={{ overflow: 'visible' }}><table style={{ minWidth: 1080 }}>
+        <div className="tabela-box" style={{ overflow: 'visible' }}><table className="tabela-base">
           <thead><tr>
             {ehAdmin && <th style={{ width: 36 }}><input type="checkbox" aria-label="Marcar todos" checked={todosMarcados} onChange={() => setSel(todosMarcados ? new Set() : new Set(filtrada.map((p) => p.id)))} style={{ minHeight: 0, width: 18, height: 18 }} /></th>}
-            <th>Colaborador</th><th>Gestor</th><th>Gestor secundário</th><th>Cargo</th><th>Admissão</th><th>Perfil (nível)</th><th>Área</th><th>Marcadores</th>{ehAdmin && <th></th>}
+            <th>Colaborador</th><th>Gestores</th><th>Cargo e área</th><th>Perfil (nível)</th><th>Marcadores</th>{ehAdmin && <th></th>}
           </tr></thead>
           <tbody>{filtrada.map((p) => (
             <tr key={p.id} style={{ opacity: p.ativo ? 1 : 0.6 }}>
               {ehAdmin && <td><input type="checkbox" aria-label={`Marcar ${p.nome}`} checked={sel.has(p.id)} onChange={() => marcar(p.id)} style={{ minHeight: 0, width: 18, height: 18 }} /></td>}
               <td>{ehAdmin ? <button className="link-nome" onClick={() => { setEditar(p); window.scrollTo({ top: 0 }) }}>{p.nome}</button> : <strong>{p.nome}</strong>}
-                <div className="muted">{p.acesso_assistido ? 'sem e-mail · preenchimento assistido' : p.email ?? 'sem e-mail'}</div></td>
-              <td>{p.gestor_id ? <Pessoa2 id={p.gestor_id} /> : <span className="marcador m-alerta">Sem gestor</span>}</td>
-              <td><Pessoa2 id={p.gestor_secundario_id} /></td>
-              <td>{p.cargo ?? '—'}</td>
-              <td style={{ whiteSpace: 'nowrap' }}>{p.data_admissao ? p.data_admissao.split('-').reverse().join('/') : '—'}</td>
+                <div className="muted">{p.acesso_assistido ? 'sem e-mail · preenchimento assistido' : p.email ?? 'sem e-mail'}</div>
+                <div className="muted">Admissão: {p.data_admissao ? p.data_admissao.split('-').reverse().join('/') : '—'}</div></td>
+              <td>{p.gestor_id ? <div>{porId.get(p.gestor_id)?.nome ?? '—'}</div> : <span className="marcador m-alerta">Sem gestor</span>}
+                {p.gestor_secundario_id && <div className="muted">2º: {porId.get(p.gestor_secundario_id)?.nome ?? '—'}</div>}</td>
+              <td>{p.cargo ?? '—'}<div className="muted">{p.area ?? ''}</div></td>
               <td>{perfilNome(p.perfil_id) ?? <span className="marcador m-alerta">Sem perfil</span>}</td>
-              <td>{p.area ?? '—'}</td>
-              <td>
+              <td className="marcadores">
                 {p.gestor_id && <span className="marcador m-lid">Liderado</span>}
                 {lideradosDe[p.id] > 0 && <span className="marcador m-ges">Gestor · {lideradosDe[p.id]}</span>}
                 {p.papel !== 'participante' && <span className="marcador m-rh">{p.papel === 'admin_rh' ? 'RH' : 'BP do RH'}</span>}
@@ -315,7 +313,7 @@ export default function Pessoas() {
                 {!p.ativo && <span className="pill neutro">Inativo</span>}
               </td>
               {ehAdmin && (
-                <td style={{ textAlign: 'right' }}>
+                <td style={{ textAlign: 'right', width: 1 }}>
                   <details className="acoes-menu">
                     <summary>Ações ▾</summary>
                     <div>
