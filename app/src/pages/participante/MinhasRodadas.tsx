@@ -25,6 +25,7 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
   const [historicas, setHistoricas] = useState<Item['rodada'][]>([])
   const [params] = useSearchParams()
   const rodadaSel = params.get('rodada')
+  const anoSel = params.get('ano') ? Number(params.get('ano')) : null
 
   useEffect(() => {
     if (!eu) return
@@ -49,7 +50,7 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
   if (!eu) return null
   const todasRodadas = [...new Map([...historicas, ...(itens ?? []).map((i) => i.rodada)].map((r) => [r.id, r])).values()]
     .sort((a, b) => Number(b.status === 'aberta') - Number(a.status === 'aberta') || b.ano - a.ano)
-  const rodadas = rodadaSel ? todasRodadas.filter((r) => r.id === rodadaSel) : todasRodadas
+  const rodadas = rodadaSel ? todasRodadas.filter((r) => r.id === rodadaSel) : anoSel ? todasRodadas.filter((r) => r.ano === anoSel) : todasRodadas
 
   function linha(i: Item) {
     const souAvaliado = i.avaliado_id === eu!.id

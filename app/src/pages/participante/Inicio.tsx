@@ -36,12 +36,19 @@ const hoje = new Date().toISOString().slice(0, 10)
 const ddmm = (d: string) => data(d).slice(0, 5)
 
 export default function Inicio() {
-  const { eu } = useAuth()
-  const [params] = useSearchParams()
+  const { eu, temEquipe } = useAuth()
+  const [params, setParams] = useSearchParams()
   const aba = params.get('aba')
-  const [tarefas, setTarefas] = useState<Tarefa[]>([])
-  const [revisoes, setRevisoes] = useState<Tarefa[]>([])
-  const [aceites, setAceites] = useState<Tarefa[]>([])
+  const anoAtualCal = new Date().getFullYear()
+  const anoF = Number(params.get('ano') ?? anoAtualCal)
+  const pessoaF = params.get('pessoa') ?? 'todos'
+  const sitF = params.get('sit') ?? 'p'
+  const filtro = (k: string, v: string) => setParams((p) => { const n = new URLSearchParams(p); n.set(k, v); return n })
+  const [todasMinhas, setTodasMinhas] = useState<Tarefa[]>([])
+  const [todasRevisoes, setTodasRevisoes] = useState<Tarefa[]>([])
+  const [todosAceites, setTodosAceites] = useState<Tarefa[]>([])
+  const [liderados, setLiderados] = useState<{ id: string; nome: string }[]>([])
+  const [objsTodos, setObjsTodos] = useState<ObjPdi[]>([])
   const [minhaContratacao, setMinhaContratacao] = useState<Tarefa | null>(null)
   const [anos, setAnos] = useState<Record<string, Ano[]>>({})
   const [pdi, setPdi] = useState<{ anos: number[]; abertos: ObjPdi[] }>({ anos: [], abertos: [] })
@@ -53,7 +60,7 @@ export default function Inicio() {
     if (!eu) return
     setCarregando(true)
     const [t, r, c, todas, res, objs, encs, combs] = await Promise.all([
-      supabase.from('avaliacoes').select(SELECT).eq('avaliador_id', eu.id).in('status', ['pendente', 'em_andamento']).eq('rodada.status', 'aberta'),
+      supabase.from('avaliacoes').select(SELECT).eq('avaliador_id', eu.id).neq('status', 'cancelada').neq('rodada.status', 'rascunho'),
       supabase.from('avaliacoes').select(SELECT).eq('grupo', 'gestor').eq('status', 'enviada').neq('avaliador_id', eu.id),
       supabase.from('avaliacoes').select(SELECT).eq('grupo', 'gestor').eq('status', 'concluida').eq('rodada.tipo', 'contratacao'),
       supabase.from('avaliacoes').select('rodada:rodadas!inner(id, ano, tipo, status)').neq('rodada.status', 'rascunho').neq('status', 'cancelada')
@@ -65,10 +72,11 @@ export default function Inicio() {
       supabase.from('encontro_combinados').select('id, acao, prazo').eq('responsavel_id', eu.id).eq('status', 'aberto').order('prazo'),
     ])
     const contr = ((c.data as unknown as Tarefa[]) ?? [])
-    setTarefas((t.data as unknown as Tarefa[]) ?? [])
-    setRevisoes(((r.data as unknown as Tarefa[]) ?? []).filter((x) => x.avaliador?.gestor_id === eu.id))
+    setTodasMinhas((t.data as unknown as Tarefa[]) ?? [])
+    setTodasRevisoes(((r.data as unknown as Tarefa[]) ?? []).filter((x) => x.avaliador?.gestor_id === eu.id))
     // contratações que eu (ou, no assistido, eu como gestor) preciso dar aceite
-    setAceites(contr.filter((x) => !umAceite(x.aceite) && (x.avaliado_id === eu.id || (x.avaliador_id === eu.id && x.avaliado?.acesso_assistido))))
+    setTodosAceites(contr.filter((x) => !umAceite(x.aceite) && (x.avaliado_id === eu.id || (x.avaliador_id === eu.id && x.avaliado?.acesso_assistido))))
+    if (temEquipe) supabase.from('pessoas').select('id, nome').eq('gestor_id', eu.id).eq('ativo', true).order('nome').then(({ data }) => setLiderados((data as { id: string; nome: string }[]) ?? []))
     setMinhaContratacao(contr.filter((x) => x.avaliado_id === eu.id && x.rodada.status === 'aberta')[0] ?? null)
 
     // anos (rodadas) por processo: onde tenho algo, mais as rodadas com resultado meu (inclui as históricas)
@@ -81,6 +89,7 @@ export default function Inicio() {
 
     const o = (objs.data as unknown as ObjPdi[]) ?? []
     const anoPdi = new Date().getFullYear()
+    setObjsTodos(o)
     setPdi({ anos: [...new Set(o.map((x) => x.ano))].sort((a, b) => b - a), abertos: o.filter((x) => x.ano === anoPdi && x.status !== 'concluido') })
 
     type Enc = { data: string; proximo_encontro: string | null; gestor_id: string; gestor: { nome: string }; liderado: { nome: string } }
@@ -96,18 +105,24 @@ export default function Inicio() {
   useEffect(() => { carregar() }, [eu?.id])
 
   async function aceitar(id: string) {
-    try { await rpc('dar_aceite', { p_avaliacao: id }); setAceites((l) => l.filter((x) => x.id !== id)); setMsg('Aceite registrado. Obrigado!'); carregar() } catch (e) { setMsg((e as Error).message) }
+    try { await rpc('dar_aceite', { p_avaliacao: id }); setTodosAceites((l) => l.filter((x) => x.id !== id)); setMsg('Aceite registrado. Obrigado!'); carregar() } catch (e) { setMsg((e as Error).message) }
   }
 
-  const pendDe = (tipo: TipoRodada) => tarefas.filter((t) => t.rodada.tipo === tipo).length
-    + (tipo === 'avaliativo' ? revisoes.length : 0) + (tipo === 'contratacao' ? aceites.length : 0)
-  const totalPend = PROCESSOS.reduce((s, p) => s + pendDe(p.tipo), 0)
-  const rodadasAbertas = new Set(tarefas.map((t) => t.rodada.id)).size
+  // Filtros do topo: ano da rodada, pessoa (gestor) e situação
+  const passaPessoa = (t: Tarefa) => pessoaF === 'todos' || (pessoaF === 'eu' ? t.avaliado_id === eu?.id || t.grupo === 'lider' : t.avaliado_id === pessoaF)
+  const ehPendente = (t: Tarefa) => (t.status === 'pendente' || t.status === 'em_andamento') && t.rodada.status === 'aberta'
+  const tarefas = todasMinhas.filter((t) => t.rodada.ano === anoF && passaPessoa(t) && (sitF === 't' || ehPendente(t)))
+  const revisoes = todasRevisoes.filter((t) => t.rodada.ano === anoF && passaPessoa(t))
+  const aceites = todosAceites.filter((t) => t.rodada.ano === anoF && passaPessoa(t))
+  const pdiAno = objsTodos.filter((x) => x.ano === anoF && (sitF === 't' || x.status !== 'concluido'))
+  const anosOpcoes = [...new Set([anoAtualCal, ...Object.values(anos).flat().map((a) => a.ano), ...pdi.anos, ...one.anos])].sort((a, b) => b - a)
+  const totalPend = PROCESSOS.reduce((s, p) => s + tarefas.filter((t) => t.rodada.tipo === p.tipo && ehPendente(t)).length, 0) + revisoes.length + aceites.length
+  const rodadasAbertas = new Set(tarefas.filter(ehPendente).map((t) => t.rodada.id)).size
   // ordem fixa da jornada: Contratação → Ciclo Avaliativo → Ciclo de Feedback
   const blocos = PROCESSOS
 
   function Bloco({ tipo, nome }: { tipo: TipoRodada; nome: string }) {
-    const n = pendDe(tipo)
+    const n = tarefas.filter((t) => t.rodada.tipo === tipo && ehPendente(t)).length + (tipo === 'avaliativo' ? revisoes.length : 0) + (tipo === 'contratacao' ? aceites.length : 0)
     const minhas = tarefas.filter((t) => t.rodada.tipo === tipo)
       .sort((a, b) => Number(b.avaliado_id === eu?.id) - Number(a.avaliado_id === eu?.id) || (a.avaliado?.nome ?? '').localeCompare(b.avaliado?.nome ?? ''))
     const lista = anos[tipo] ?? []
@@ -115,18 +130,9 @@ export default function Inicio() {
       <section className="processo">
         <div className="processo-topo">
           <h2>{nome}{n > 0 ? <span className="contador pend">{n} {n === 1 ? 'pendência' : 'pendências'}</span> : lista.length > 0 && <span className="contador ok">em dia</span>}</h2>
-          {lista.length > 0 && (
-            <nav className="anos" aria-label={`Rodadas de ${nome}`}>
-              <span className="muted">Rodadas:</span>
-              {lista.map((a) => (
-                <Link key={a.id} className={`ano${a.aberta ? ' atual' : ''}`} to={`/?aba=${tipo}&rodada=${a.id}`} title={a.aberta ? 'Rodada aberta' : undefined}>
-                  {a.aberta && <span className="ponto" aria-hidden="true" />}{a.ano}
-                </Link>
-              ))}
-            </nav>
-          )}
+          {lista.length > 0 && <Link className="muted" to={`/?aba=${tipo}&ano=${anoF}`}>Ver rodadas de {anoF} →</Link>}
         </div>
-        {n > 0 ? (
+        {n > 0 || minhas.length > 0 ? (
           <div className="tiles">
             {minhas.map((t) => (
               <Link key={t.id} to={`/avaliacao/${t.id}`} className="tile">
@@ -162,12 +168,21 @@ export default function Inicio() {
     )
   }
 
-  const anoAtual = new Date().getFullYear()
   return (
     <>
       <div className="cabecalho">
-        <div><div className="migalha">Meu espaço</div><h1>Olá, {eu?.nome.split(' ')[0]}</h1></div>
-        {!aba && !carregando && <span className="muted">{totalPend ? `${totalPend} ${totalPend === 1 ? 'pendência' : 'pendências'} em ${rodadasAbertas} ${rodadasAbertas === 1 ? 'rodada aberta' : 'rodadas abertas'}` : 'Nada pendente agora'}</span>}
+        <div><div className="migalha">Meu espaço</div><h1>Olá, {eu?.nome.split(' ')[0]}</h1>
+          {!aba && !carregando && <span className="muted">{totalPend ? `${totalPend} ${totalPend === 1 ? 'pendência' : 'pendências'} em ${rodadasAbertas} ${rodadasAbertas === 1 ? 'rodada aberta' : 'rodadas abertas'}` : 'Nada pendente agora'}</span>}</div>
+        <div className="linha">
+          <select value={anoF} onChange={(e) => filtro('ano', e.target.value)} aria-label="Ano">{anosOpcoes.map((a) => <option key={a} value={a}>Ano: {a}</option>)}</select>
+          {temEquipe && (
+            <select value={pessoaF} onChange={(e) => filtro('pessoa', e.target.value)} aria-label="Pessoa">
+              <option value="todos">Pessoa: eu e minha equipe</option><option value="eu">Pessoa: só eu</option>
+              {liderados.map((l) => <option key={l.id} value={l.id}>Pessoa: {l.nome}</option>)}
+            </select>
+          )}
+          <select value={sitF} onChange={(e) => filtro('sit', e.target.value)} aria-label="Situação"><option value="p">Situação: com pendência</option><option value="t">Situação: tudo</option></select>
+        </div>
       </div>
       <AbasMeuEspaco />
       {aba === 'contratacao' || aba === 'avaliativo' || aba === 'feedback' ? <MinhasRodadas tipo={aba} /> : carregando ? <div className="card"><p>Carregando…</p></div> : <>
@@ -177,36 +192,26 @@ export default function Inicio() {
         <div className="grade" style={{ ['--min' as string]: '340px' }}>
           <section className="processo">
             <div className="processo-topo">
-              <h2>PDI{pdi.abertos.length > 0 ? <span className="contador pend">{pdi.abertos.length} {pdi.abertos.length === 1 ? 'objetivo em aberto' : 'objetivos em aberto'}</span> : pdi.anos.length > 0 && <span className="contador ok">em dia</span>}</h2>
-              {pdi.anos.length > 0 && (
-                <nav className="anos" aria-label="Anos do PDI">
-                  <span className="muted">Ano:</span>
-                  {pdi.anos.map((a) => <Link key={a} className={`ano${a === anoAtual ? ' atual' : ''}`} to={`/pdi?ano=${a}`}>{a === anoAtual && <span className="ponto" aria-hidden="true" />}{a}</Link>)}
-                </nav>
-              )}
+              <h2>PDI{pdiAno.filter((o) => o.status !== 'concluido').length > 0 ? <span className="contador pend">{pdiAno.filter((o) => o.status !== 'concluido').length} em aberto</span> : pdi.anos.length > 0 && <span className="contador ok">em dia</span>}</h2>
+              <Link className="muted" to={`/pdi?ano=${anoF}`}>Abrir PDI de {anoF} →</Link>
             </div>
-            {pdi.abertos.slice(0, 3).map((o) => {
+            {pdiAno.slice(0, 3).map((o) => {
               const abertas = o.tarefas.filter((x) => !x.concluida).length
               return (
                 <Link key={o.id} to={`/pdi?ano=${o.ano}`} className="mini">
                   <span>{o.nome}{abertas > 0 && <span className="muted"> · {abertas} {abertas === 1 ? 'tarefa' : 'tarefas'}</span>}</span>
-                  <span className={`pill ${o.fim < hoje ? 'erro' : 'pend'}`}>{o.fim < hoje ? 'venceu' : 'termina'} {ddmm(o.fim)}</span>
+                  {o.status === 'concluido' ? <span className="pill ok">concluído</span> : <span className={`pill ${o.fim < hoje ? 'erro' : 'pend'}`}>{o.fim < hoje ? 'venceu' : 'termina'} {ddmm(o.fim)}</span>}
                 </Link>
               )
             })}
-            {pdi.abertos.length > 3 && <Link to="/pdi" className="muted">+ {pdi.abertos.length - 3} no PDI</Link>}
-            {pdi.abertos.length === 0 && <p className="em-dia">{pdi.anos.length ? `✓ Nenhum objetivo em aberto em ${anoAtual}.` : <>Você ainda não tem PDI. <Link to="/pdi">Criar meu PDI</Link></>}</p>}
+            {pdiAno.length > 3 && <Link to="/pdi" className="muted">+ {pdiAno.length - 3} no PDI</Link>}
+            {pdiAno.length === 0 && <p className="em-dia">{pdi.anos.length ? `✓ Nenhum objetivo em aberto em ${anoF}.` : <>Você ainda não tem PDI. <Link to="/pdi">Criar meu PDI</Link></>}</p>}
           </section>
 
           <section className="processo">
             <div className="processo-topo">
               <h2>One a One{one.combinados.length > 0 ? <span className="contador info">{one.combinados.length} {one.combinados.length === 1 ? 'combinado aberto' : 'combinados abertos'}</span> : one.anos.length > 0 && <span className="contador ok">em dia</span>}</h2>
-              {one.anos.length > 0 && (
-                <nav className="anos" aria-label="Anos do One a One">
-                  <span className="muted">Ano:</span>
-                  {one.anos.map((a) => <Link key={a} className={`ano${a === anoAtual ? ' atual' : ''}`} to={`/one-a-one?ano=${a}`}>{a === anoAtual && <span className="ponto" aria-hidden="true" />}{a}</Link>)}
-                </nav>
-              )}
+              <Link className="muted" to={`/one-a-one?ano=${anoF}`}>Abrir encontros de {anoF} →</Link>
             </div>
             {one.proximo && <Link to="/one-a-one" className="mini"><span>Próximo encontro com {one.proximo.com}</span><strong>{ddmm(one.proximo.data)}</strong></Link>}
             {one.combinados.slice(0, 3).map((c) => (
