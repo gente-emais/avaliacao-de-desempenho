@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import AbasMeuEspaco from '../../components/AbasMeuEspaco'
-import { supabase } from '../../lib/supabase'
+import { supabase, nomesPorId } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data as dataBr } from '../../lib/format'
 
-// Diário de bordo: o colaborador registra entregas e contribuições; o gestor vê o que foi compartilhado e comenta.
+// Diário de bordo: o colaborador registra entregas e contribuições; o gestor vê o que foi compartilhado, comenta
+// e também pode fazer registros no diário do liderado (reconhecimentos, pontos de melhoria), sempre visíveis para ele.
 export interface Registro {
-  id: string; pessoa_id: string; data: string; titulo: string; descricao: string | null; tipo: string
+  id: string; pessoa_id: string; autor_id: string; data: string; titulo: string; descricao: string | null; tipo: string
   competencia_id: number | null; link: string | null; compartilhado: boolean
   comentarios: { id: string; texto: string; criado_em: string; autor: { nome: string } | null }[]
   usos: { avaliacao_id: string }[]
@@ -16,7 +16,7 @@ export const TIPOS: Record<string, [string, string]> = {
   entrega: ['Entrega', 'm-ok'], melhoria: ['Melhoria', 'm-lid'], reconhecimento: ['Reconhecimento', 'm-ges'], aprendizado: ['Aprendizado', 'm-alerta'],
 }
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-export const SELECT_DIARIO = 'id, pessoa_id, data, titulo, descricao, tipo, competencia_id, link, compartilhado, comentarios:diario_comentarios(id, texto, criado_em, autor:pessoas(nome)), usos:diario_usos(avaliacao_id)'
+export const SELECT_DIARIO = 'id, pessoa_id, autor_id, data, titulo, descricao, tipo, competencia_id, link, compartilhado, comentarios:diario_comentarios(id, texto, criado_em, autor:pessoas(nome)), usos:diario_usos(avaliacao_id)'
 
 export default function Diario() {
   const { eu } = useAuth()
@@ -27,9 +27,10 @@ export default function Diario() {
   const [regs, setRegs] = useState<Registro[]>([])
   const [comps, setComps] = useState<{ id: number; nome: string }[]>([])
   const [nomeAlvo, setNomeAlvo] = useState('')
+  const [autores, setAutores] = useState<Record<string, string>>({})
   const [fTipo, setFTipo] = useState('')
   const [fComp, setFComp] = useState('')
-  const [tipo, setTipo] = useState('entrega')
+  const [tipo, setTipo] = useState(pessoaParam && pessoaParam !== eu?.id ? 'reconhecimento' : 'entrega')
   const [comp, setComp] = useState<number | null>(null)
   const [editando, setEditando] = useState<Registro | null>(null)
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
@@ -38,7 +39,9 @@ export default function Diario() {
     if (!alvo) return
     const { data, error } = await supabase.from('diario_registros').select(SELECT_DIARIO).eq('pessoa_id', alvo).order('data', { ascending: false }).order('criado_em', { ascending: false })
     if (error) setMsg({ t: error.message, c: 'erro' })
-    setRegs((data as unknown as Registro[]) ?? [])
+    const l = (data as unknown as Registro[]) ?? []
+    setRegs(l)
+    setAutores(await nomesPorId(l.filter((r) => r.autor_id !== r.pessoa_id).map((r) => r.autor_id)))
   }
   useEffect(() => {
     carregar()
@@ -57,7 +60,7 @@ export default function Diario() {
   const nomeComp = (id: number | null) => comps.find((c) => c.id === id)?.nome
 
   function editar(r: Registro) { setEditando(r); setTipo(r.tipo); setComp(r.competencia_id); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-  function limpar(f?: HTMLFormElement) { setEditando(null); setTipo('entrega'); setComp(null); f?.reset() }
+  function limpar(f?: HTMLFormElement) { setEditando(null); setTipo(proprio ? 'entrega' : 'reconhecimento'); setComp(null); f?.reset() }
 
   async function salvar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -66,14 +69,14 @@ export default function Diario() {
     const dados = {
       titulo: String(f.get('titulo') ?? '').trim(), descricao: String(f.get('descricao') ?? '').trim() || null,
       data: String(f.get('data') || new Date().toISOString().slice(0, 10)), link: String(f.get('link') ?? '').trim() || null,
-      tipo, competencia_id: comp, compartilhado: f.get('compartilhado') === 'on',
+      tipo, competencia_id: comp, compartilhado: proprio ? f.get('compartilhado') === 'on' : true,
     }
     if (dados.titulo.length < 3) return setMsg({ t: 'Escreva o que aconteceu.', c: 'erro' })
     const { error } = editando
       ? await supabase.from('diario_registros').update({ ...dados, atualizado_em: new Date().toISOString() }).eq('id', editando.id)
-      : await supabase.from('diario_registros').insert({ ...dados, pessoa_id: eu!.id })
+      : await supabase.from('diario_registros').insert({ ...dados, pessoa_id: alvo, autor_id: eu!.id })
     if (error) return setMsg({ t: error.message, c: 'erro' })
-    setMsg({ t: editando ? 'Registro atualizado.' : 'Registro salvo no seu diário de bordo.', c: 'ok' })
+    setMsg({ t: editando ? 'Registro atualizado.' : proprio ? 'Registro salvo no seu diário de bordo.' : `Registro salvo no diário de ${nomeAlvo.split(' ')[0]}. Ela(e) já consegue ver.`, c: 'ok' })
     limpar(form); carregar()
   }
   async function apagar(r: Registro) {
@@ -93,11 +96,10 @@ export default function Diario() {
       <div className="cabecalho">
         <div><div className="migalha">Meu espaço</div><h1>{proprio ? 'Diário de bordo' : `Diário de bordo de ${nomeAlvo}`}</h1></div>
       </div>
-      {proprio && <AbasMeuEspaco />}
       <p className="muted" style={{ maxWidth: 900 }}>
         {proprio
           ? 'Registre suas entregas e contribuições ao longo do ano. Na autoavaliação e no One a One, você e seu gestor usam esses registros como fatos e dados.'
-          : 'Você vê só os registros que a pessoa compartilhou com o gestor. Comente para reconhecer ou orientar.'}
+          : 'Você vê os registros que a pessoa compartilhou com você e pode comentar. Também pode fazer os seus registros, como reconhecimentos e pontos de melhoria: eles ficam visíveis para a pessoa.'}
       </p>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
 
@@ -108,12 +110,12 @@ export default function Diario() {
         <div className="kpi-filtro"><span className="muted">Usados como evidência</span><b>{doAno.filter((r) => r.usos.length).length}</b></div>
       </div>
 
-      <div className={`diario${proprio ? '' : ' so-lista'}`}>
-        {proprio && (
+      <div className="diario">
+        {(
           <form className="card" onSubmit={salvar} key={editando?.id ?? 'novo'}>
-            <h2>{editando ? 'Editar registro' : 'Novo registro'}</h2>
-            <label className="campo">O que aconteceu<input name="titulo" defaultValue={editando?.titulo} placeholder="Ex.: Reduzi o retrabalho no controle de medições" required /></label>
-            <label className="campo">Conte com fatos e dados<textarea name="descricao" rows={4} defaultValue={editando?.descricao ?? ''} placeholder="O que você fez, o resultado e como dá para comprovar" /></label>
+            <h2>{editando ? 'Editar registro' : proprio ? 'Novo registro' : `Novo registro para ${nomeAlvo.split(' ')[0] || 'a pessoa'}`}</h2>
+            <label className="campo">O que aconteceu<input name="titulo" defaultValue={editando?.titulo} placeholder={proprio ? 'Ex.: Reduzi o retrabalho no controle de medições' : 'Ex.: Conduziu muito bem a entrega do loteamento X'} required /></label>
+            <label className="campo">Conte com fatos e dados<textarea name="descricao" rows={4} defaultValue={editando?.descricao ?? ''} placeholder={proprio ? 'O que você fez, o resultado e como dá para comprovar' : 'O que você observou, o impacto e o que espera daqui para frente'} /></label>
             <div className="campo">Tipo
               <div className="linha">{Object.entries(TIPOS).map(([k, [t]]) => <button key={k} type="button" className={`chip${tipo === k ? ' on' : ''}`} aria-pressed={tipo === k} onClick={() => setTipo(k)}>{t}</button>)}</div>
             </div>
@@ -124,7 +126,9 @@ export default function Diario() {
               <label className="campo">Data<input name="data" type="date" defaultValue={editando?.data ?? new Date().toISOString().slice(0, 10)} /></label>
               <label className="campo">Link (opcional)<input name="link" type="url" defaultValue={editando?.link ?? ''} placeholder="https://…" /></label>
             </div>
-            <label className="linha" style={{ fontSize: 14 }}><input type="checkbox" name="compartilhado" defaultChecked={editando ? editando.compartilhado : true} style={{ minHeight: 0, width: 18, height: 18 }} />Compartilhar com meu gestor</label>
+            {proprio
+              ? <label className="linha" style={{ fontSize: 14 }}><input type="checkbox" name="compartilhado" defaultChecked={editando ? editando.compartilhado : true} style={{ minHeight: 0, width: 18, height: 18 }} />Compartilhar com meu gestor</label>
+              : <span className="muted">Este registro fica visível para {nomeAlvo.split(' ')[0] || 'a pessoa'}.</span>}
             <div className="linha">
               <button className="primario">{editando ? 'Salvar alterações' : 'Salvar registro'}</button>
               {editando && <button type="button" onClick={() => limpar()}>Cancelar</button>}
@@ -144,7 +148,7 @@ export default function Diario() {
           {porMes.map(([mes, rs]) => (
             <div key={mes} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="mes-titulo">{mes}</div>
-              {rs.map((r) => <CartaoRegistro key={r.id} r={r} comp={nomeComp(r.competencia_id)} proprio={proprio} onEditar={() => editar(r)} onApagar={() => apagar(r)} onComentar={(t) => comentar(r, t)} />)}
+              {rs.map((r) => <CartaoRegistro key={r.id} r={r} comp={nomeComp(r.competencia_id)} meu={r.autor_id === eu?.id} autor={r.autor_id !== r.pessoa_id ? (autores[r.autor_id] ?? 'Gestor') : null} proprio={proprio} onEditar={() => editar(r)} onApagar={() => apagar(r)} onComentar={(t) => comentar(r, t)} />)}
             </div>
           ))}
         </section>
@@ -153,14 +157,14 @@ export default function Diario() {
   )
 }
 
-function CartaoRegistro({ r, comp, proprio, onEditar, onApagar, onComentar }: {
-  r: Registro; comp?: string; proprio: boolean; onEditar: () => void; onApagar: () => void; onComentar: (t: string) => void
+function CartaoRegistro({ r, comp, meu, autor, proprio, onEditar, onApagar, onComentar }: {
+  r: Registro; comp?: string; meu: boolean; autor: string | null; proprio: boolean; onEditar: () => void; onApagar: () => void; onComentar: (t: string) => void
 }) {
   const [texto, setTexto] = useState('')
   return (
-    <article className="registro">
+    <article className={`registro${autor ? ' do-gestor' : ''}`}>
       <div className="linha entre">
-        <div className="linha"><span className={`marcador ${TIPOS[r.tipo]?.[1]}`}>{TIPOS[r.tipo]?.[0]}</span>{comp && <span className="marcador m-comp">{comp}</span>}</div>
+        <div className="linha"><span className={`marcador ${TIPOS[r.tipo]?.[1]}`}>{TIPOS[r.tipo]?.[0]}</span>{comp && <span className="marcador m-comp">{comp}</span>}{autor && <span className="marcador m-rh">Registrado por {autor}</span>}</div>
         <span className="muted">{dataBr(r.data)}</span>
       </div>
       <h3>{r.titulo}</h3>
@@ -170,10 +174,10 @@ function CartaoRegistro({ r, comp, proprio, onEditar, onApagar, onComentar }: {
         <div key={c.id} className="comentario-gestor"><b>{c.autor?.nome ?? 'Gestor'}</b><span>{c.texto}</span></div>
       ))}
       <div className="linha entre">
-        <span className="muted">{r.compartilhado ? 'Compartilhado com o gestor' : 'Só eu vejo'}{r.usos.length ? ' · usado como evidência' : ''}</span>
-        {proprio && <div className="linha"><button className="pequeno" onClick={onEditar}>Editar</button>{!r.usos.length && <button className="pequeno" onClick={onApagar}>Apagar</button>}</div>}
+        <span className="muted">{autor ? (proprio ? 'Registro do seu gestor' : 'Registro do gestor, visível para a pessoa') : r.compartilhado ? 'Compartilhado com o gestor' : 'Só eu vejo'}{r.usos.length ? ' · usado como evidência' : ''}</span>
+        {meu && <div className="linha"><button className="pequeno" onClick={onEditar}>Editar</button>{!r.usos.length && <button className="pequeno" onClick={onApagar}>Apagar</button>}</div>}
       </div>
-      {!proprio && (
+      {!meu && (
         <form className="linha" onSubmit={(e) => { e.preventDefault(); onComentar(texto); setTexto('') }}>
           <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Comentar este registro" aria-label="Comentário" style={{ flex: '1 1 240px' }} />
           <button className="pequeno">Comentar</button>

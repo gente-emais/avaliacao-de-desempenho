@@ -291,3 +291,6 @@ fieldset.pergunta { border-left: 0; border-right: 0; border-bottom: 0; }
 .gaveta-filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .gaveta-filtros input[type=search] { flex: 1 1 220px; min-width: 0; }
 .gaveta-filtros select { flex: 0 1 200px; min-width: 0; }
+
+/* Diário: registro feito pelo gestor */
+.registro.do-gestor { border-left: 4px solid var(--verde-escuro); }

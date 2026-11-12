@@ -24,6 +24,7 @@ export default function Layout() {
           <span className="nav-titulo">Meu espaço</span>
           <NavLink to="/" end>Início</NavLink>
           {temEquipe && <NavLink to="/equipe">Minha equipe</NavLink>}
+          <NavLink to="/diario">Diário de bordo</NavLink>
           <NavLink to="/resultado">Meu resultado</NavLink>
         </nav>
         <div className="sidebar-rodape">

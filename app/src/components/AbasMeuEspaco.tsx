@@ -6,7 +6,6 @@ const ABAS = [
   { id: 'contratacao', rotulo: 'Contratação de Desempenho', to: '/?aba=contratacao' },
   { id: 'avaliativo', rotulo: 'Ciclo Avaliativo', to: '/?aba=avaliativo' },
   { id: 'feedback', rotulo: 'Ciclo de Feedback', to: '/?aba=feedback' },
-  { id: 'diario', rotulo: 'Diário de bordo', to: '/diario' },
   { id: 'pdi', rotulo: 'PDI', to: '/pdi' },
   { id: 'one', rotulo: 'One a One', to: '/one-a-one' },
 ]
