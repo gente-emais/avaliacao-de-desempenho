@@ -277,3 +277,6 @@ div.kpi-filtro { display: flex; min-width: 0; }
 div.kpi-filtro .muted { overflow-wrap: anywhere; }
 .diario.so-lista { grid-template-columns: minmax(0, 1fr); }
 .diario .linha.entre { flex-wrap: wrap; gap: 10px; }
+
+/* Minha equipe: botões do cartão com o mesmo tamanho e a mesma letra */
+.acao-equipe { width: 100%; min-height: 40px; justify-content: center; text-align: center; font-size: 14px; font-weight: 600; padding: 0 14px; }

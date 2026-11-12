@@ -70,13 +70,13 @@ export default function Equipe() {
                 {ultimo && <Linha k="Último resultado" v={ultimo.faixa_nome ?? '—'} c="neutro" />}
                 {!minhas.length && !auto.length && !ultimo && <Linha k="Rodadas" v="Nenhuma aberta" c="neutro" />}
               </dl>
-              <Link className="botao pequeno" to={`/diario?pessoa=${p.id}`}>Diário de bordo</Link>
+              <Link className="botao acao-equipe" to={`/diario?pessoa=${p.id}`}>Diário de bordo</Link>
               {[...new Map(avs.filter((a) => a.avaliado_id === p.id).map((a) => [a.rodada.id, a.rodada])).values()].map((ro) => (
-                <button key={ro.id} className="pequeno" onClick={() => setVer({ rodada: ro.id, pessoa: p.id, nome: p.nome })}>Quem avalia · {ro.nome}</button>
+                <button key={ro.id} className="acao-equipe" onClick={() => setVer({ rodada: ro.id, pessoa: p.id, nome: p.nome })}>Quem avalia · {ro.nome}</button>
               ))}
               {pendente
-                ? <Link className="botao primario" to={`/avaliacao/${pendente.id}`} style={{ justifyContent: 'center' }}>{pendente.status === 'pendente' ? 'Começar' : 'Continuar'}</Link>
-                : <Link className="botao" to="/one-a-one" style={{ justifyContent: 'center' }}>Abrir One a One</Link>}
+                ? <Link className="botao primario acao-equipe" to={`/avaliacao/${pendente.id}`}>{pendente.status === 'pendente' ? 'Começar' : 'Continuar'}</Link>
+                : <Link className="botao acao-equipe" to="/one-a-one">Abrir One a One</Link>}
             </article>
           )
         })}
