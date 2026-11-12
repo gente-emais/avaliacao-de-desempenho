@@ -26,7 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSessao(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => setSessao(s))
+    // Se outra aba do mesmo navegador entrar com outro login, esta aba recarrega já com o novo usuário,
+    // para ninguém registrar nada achando que está em outra pessoa.
+    let ultimo: string | null = null
+    supabase.auth.getSession().then(({ data: d }) => { ultimo = d.session?.user.id ?? null })
+    const { data } = supabase.auth.onAuthStateChange((_e, s) => {
+      const novo = s?.user.id ?? null
+      if (ultimo && novo && novo !== ultimo) {
+        try { sessionStorage.setItem('troca-login', '1') } catch { /* sem storage */ }
+        window.location.replace(import.meta.env.BASE_URL)
+        return
+      }
+      ultimo = novo
+      setSessao(s)
+    })
     return () => data.subscription.unsubscribe()
   }, [])
 

@@ -114,6 +114,7 @@ export default function Diario() {
         {(
           <form className="card" onSubmit={salvar} key={editando?.id ?? 'novo'}>
             <h2>{editando ? 'Editar registro' : proprio ? 'Novo registro' : `Novo registro para ${nomeAlvo.split(' ')[0] || 'a pessoa'}`}</h2>
+            <span className="muted">{proprio ? `No seu diário · ${eu?.nome ?? ''}` : `Registrado por você (${eu?.nome ?? ''}) no diário de ${nomeAlvo}`}</span>
             <label className="campo">O que aconteceu<input name="titulo" defaultValue={editando?.titulo} placeholder={proprio ? 'Ex.: Reduzi o retrabalho no controle de medições' : 'Ex.: Conduziu muito bem a entrega do loteamento X'} required /></label>
             <label className="campo">Conte com fatos e dados<textarea name="descricao" rows={4} defaultValue={editando?.descricao ?? ''} placeholder={proprio ? 'O que você fez, o resultado e como dá para comprovar' : 'O que você observou, o impacto e o que espera daqui para frente'} /></label>
             <div className="campo">Tipo
@@ -148,7 +149,7 @@ export default function Diario() {
           {porMes.map(([mes, rs]) => (
             <div key={mes} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="mes-titulo">{mes}</div>
-              {rs.map((r) => <CartaoRegistro key={r.id} r={r} comp={nomeComp(r.competencia_id)} meu={r.autor_id === eu?.id} autor={r.autor_id !== r.pessoa_id ? (autores[r.autor_id] ?? 'Gestor') : null} proprio={proprio} onEditar={() => editar(r)} onApagar={() => apagar(r)} onComentar={(t) => comentar(r, t)} />)}
+              {rs.map((r) => <CartaoRegistro key={r.id} r={r} comp={nomeComp(r.competencia_id)} meu={r.autor_id === eu?.id} autor={r.autor_id !== r.pessoa_id ? (autores[r.autor_id] ?? 'Gestor') : null} quem={r.autor_id !== r.pessoa_id ? (autores[r.autor_id] ?? 'Gestor') : proprio ? null : nomeAlvo} proprio={proprio} onEditar={() => editar(r)} onApagar={() => apagar(r)} onComentar={(t) => comentar(r, t)} />)}
             </div>
           ))}
         </section>
@@ -157,14 +158,14 @@ export default function Diario() {
   )
 }
 
-function CartaoRegistro({ r, comp, meu, autor, proprio, onEditar, onApagar, onComentar }: {
-  r: Registro; comp?: string; meu: boolean; autor: string | null; proprio: boolean; onEditar: () => void; onApagar: () => void; onComentar: (t: string) => void
+function CartaoRegistro({ r, comp, meu, autor, quem, proprio, onEditar, onApagar, onComentar }: {
+  r: Registro; comp?: string; meu: boolean; autor: string | null; quem: string | null; proprio: boolean; onEditar: () => void; onApagar: () => void; onComentar: (t: string) => void
 }) {
   const [texto, setTexto] = useState('')
   return (
     <article className={`registro${autor ? ' do-gestor' : ''}`}>
       <div className="linha entre">
-        <div className="linha"><span className={`marcador ${TIPOS[r.tipo]?.[1]}`}>{TIPOS[r.tipo]?.[0]}</span>{comp && <span className="marcador m-comp">{comp}</span>}{autor && <span className="marcador m-rh">Registrado por {autor}</span>}</div>
+        <div className="linha"><span className={`marcador ${TIPOS[r.tipo]?.[1]}`}>{TIPOS[r.tipo]?.[0]}</span>{comp && <span className="marcador m-comp">{comp}</span>}{quem && <span className={`marcador ${autor ? 'm-rh' : 'm-comp'}`}>Registrado por {quem}</span>}</div>
         <span className="muted">{dataBr(r.data)}</span>
       </div>
       <h3>{r.titulo}</h3>

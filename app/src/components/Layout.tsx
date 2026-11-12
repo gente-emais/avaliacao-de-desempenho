@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 
 export default function Layout() {
   const { eu, ehRh, ehAdmin, temEquipe, sair } = useAuth()
+  const [trocou] = useState(() => { try { const v = sessionStorage.getItem('troca-login'); sessionStorage.removeItem('troca-login'); return !!v } catch { return false } })
   return (
     <div className="app">
       <aside className="sidebar">
@@ -33,6 +35,7 @@ export default function Layout() {
         </div>
       </aside>
       <main className="conteudo">
+        {trocou && <div className="aviso pend">Outra aba deste navegador entrou com outro login. Esta janela agora está como <strong>{eu?.nome}</strong>. Para testar vários usuários ao mesmo tempo, use uma janela anônima ou outro navegador para cada login.</div>}
         <Outlet />
       </main>
     </div>
