@@ -12,7 +12,7 @@ export const supabase = createClient(url, key)
 
 // Colunas de pessoas liberadas para leitura (o CPF completo nunca sai pela API).
 export const PESSOA_COLS =
-  'id, cpf_mascarado, nome, email, email_ficticio, cargo, area, perfil_id, gestor_id, gestor_secundario_id, bp_id, papel, acesso_assistido, ativo'
+  'id, cpf_mascarado, nome, email, email_ficticio, cargo, area, perfil_id, gestor_id, gestor_secundario_id, bp_id, papel, acesso_assistido, ativo, data_admissao'
 
 export type Papel = 'admin_rh' | 'bp_rh' | 'participante'
 export type Grupo = 'auto' | 'gestor' | 'lider' | 'par'
@@ -34,6 +34,7 @@ export interface Pessoa {
   papel: Papel
   acesso_assistido: boolean
   ativo: boolean
+  data_admissao: string | null
 }
 
 export interface Rodada {

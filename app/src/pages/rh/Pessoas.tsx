@@ -11,7 +11,7 @@ interface Previa { importacao_id: string; gravado: boolean; lidas: number; rejei
 type PessoaLista = Pessoa & { user_id: string | null }
 
 const COLUNAS: [string, string][] = [
-  ['cpf', 'CPF'], ['nome', 'Nome'], ['email', 'E-mail'], ['cargo', 'Cargo'], ['area', 'Área'],
+  ['cpf', 'CPF'], ['nome', 'Nome'], ['email', 'E-mail'], ['cargo', 'Cargo'], ['data_admissao', 'Data de admissão'], ['area', 'Área'],
   ['perfil', 'Perfil de avaliação'], ['cpf_gestor', 'CPF do gestor'], ['gestor_nome', 'Nome do gestor'],
   ['cpf_gestor_secundario', 'CPF do gestor secundário'], ['gestor2_nome', 'Nome do gestor secundário'],
   ['cpf_bp', 'CPF do BP'], ['acesso_assistido', 'Acesso assistido (S/N)'],
@@ -22,8 +22,15 @@ const SINONIMOS: Record<string, string> = Object.fromEntries([
   ['email', 'email'], ['perfil', 'perfil'], ['cpfgestor', 'cpf_gestor'], ['gestor', 'cpf_gestor'],
   ['gestorsecundario', 'cpf_gestor_secundario'], ['cpfgestornivel', 'cpf_gestor_secundario'], ['cpfdogestornivel', 'cpf_gestor_secundario'],
   ['nomedogestor', 'gestor_nome'], ['nomegestor', 'gestor_nome'], ['gestordireto', 'gestor_nome'], ['nomedogestordireto', 'gestor_nome'],
-  ['nomedogestorsecundario', 'gestor2_nome'], ['nomegestorsecundario', 'gestor2_nome'], ['gestornivel', 'gestor2_nome'], ['nomedogestornivel', 'gestor2_nome'], ['bp', 'cpf_bp'], ['acessoassistido', 'acesso_assistido'], ['assistido', 'acesso_assistido'], ['papel', 'papel'],
+  ['nomedogestorsecundario', 'gestor2_nome'], ['nomegestorsecundario', 'gestor2_nome'], ['gestornivel', 'gestor2_nome'], ['nomedogestornivel', 'gestor2_nome'], ['bp', 'cpf_bp'], ['acessoassistido', 'acesso_assistido'], ['assistido', 'acesso_assistido'], ['papel', 'papel'], ['dataadmissao', 'data_admissao'], ['admissao', 'data_admissao'], ['dtadmissao', 'data_admissao'],
 ])
+// Data de admissão: célula de data do Excel vira AAAA-MM-DD; texto DD/MM/AAAA segue como está (o banco entende)
+function dataIso(cru: unknown, texto: string) {
+  if (cru instanceof Date && !isNaN(cru.getTime())) {
+    return `${cru.getFullYear()}-${String(cru.getMonth() + 1).padStart(2, '0')}-${String(cru.getDate()).padStart(2, '0')}`
+  }
+  return texto.trim()
+}
 const SITUACAO: Record<string, [string, string]> = {
   novo: ['Novo', 'info'], alterado: ['Alterado', 'info'], aviso: ['Aviso', 'pend'], erro: ['Erro', 'erro'], inativar: ['Não veio na planilha', 'pend'],
 }
@@ -61,7 +68,7 @@ export default function Pessoas() {
   }, [])
 
   function baixarModelo() {
-    const ws = XLSX.utils.aoa_to_sheet([COLUNAS.map(([, r]) => r), ['12345678909', 'Nome Sobrenome', 'nome@emais.com.br', 'Analista', 'Engenharia', 'Tático', '', 'Fulano de Tal', '', '', '', 'N']])
+    const ws = XLSX.utils.aoa_to_sheet([COLUNAS.map(([, r]) => r), ['12345678909', 'Nome Sobrenome', 'nome@emais.com.br', 'Analista', '01/03/2024', 'Engenharia', 'Tático', '', 'Fulano de Tal', '', '', '', 'N']])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Pessoas')
     XLSX.writeFile(wb, 'modelo_pessoas_emais.xlsx')
@@ -69,11 +76,17 @@ export default function Pessoas() {
 
   async function lerArquivo(f: File) {
     setMsg(null); setPrevia(null)
-    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' })
-    const bruto = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]], { defval: '', raw: false })
-    const mapeadas = bruto.map((l) => {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: true })
+    const aba = wb.Sheets[wb.SheetNames[0]]
+    const bruto = XLSX.utils.sheet_to_json<Record<string, unknown>>(aba, { defval: '', raw: false })
+    const crus = XLSX.utils.sheet_to_json<Record<string, unknown>>(aba, { defval: '', raw: true })
+    const mapeadas = bruto.map((l, i) => {
       const o: Record<string, string> = {}
-      Object.entries(l).forEach(([k, v]) => { const chave = SINONIMOS[normal(k)]; if (chave) o[chave] = String(v ?? '').trim() })
+      Object.entries(l).forEach(([k, v]) => {
+        const chave = SINONIMOS[normal(k)]
+        if (!chave) return
+        o[chave] = chave === 'data_admissao' ? dataIso(crus[i]?.[k], String(v ?? '')) : String(v ?? '').trim()
+      })
       // Se veio nome (letras) na coluna de CPF do gestor, trata como nome
       if (/[a-zA-Z]/.test(o.cpf_gestor ?? '')) { o.gestor_nome = o.gestor_nome || o.cpf_gestor; o.cpf_gestor = '' }
       if (/[a-zA-Z]/.test(o.cpf_gestor_secundario ?? '')) { o.gestor2_nome = o.gestor2_nome || o.cpf_gestor_secundario; o.cpf_gestor_secundario = '' }
@@ -281,7 +294,7 @@ export default function Pessoas() {
         <div className="tabela-box" style={{ overflow: 'visible' }}><table style={{ minWidth: 1080 }}>
           <thead><tr>
             {ehAdmin && <th style={{ width: 36 }}><input type="checkbox" aria-label="Marcar todos" checked={todosMarcados} onChange={() => setSel(todosMarcados ? new Set() : new Set(filtrada.map((p) => p.id)))} style={{ minHeight: 0, width: 18, height: 18 }} /></th>}
-            <th>Colaborador</th><th>Gestor</th><th>Gestor secundário</th><th>Cargo</th><th>Perfil (nível)</th><th>Área</th><th>Marcadores</th>{ehAdmin && <th></th>}
+            <th>Colaborador</th><th>Gestor</th><th>Gestor secundário</th><th>Cargo</th><th>Admissão</th><th>Perfil (nível)</th><th>Área</th><th>Marcadores</th>{ehAdmin && <th></th>}
           </tr></thead>
           <tbody>{filtrada.map((p) => (
             <tr key={p.id} style={{ opacity: p.ativo ? 1 : 0.6 }}>
@@ -291,6 +304,7 @@ export default function Pessoas() {
               <td>{p.gestor_id ? <Pessoa2 id={p.gestor_id} /> : <span className="marcador m-alerta">Sem gestor</span>}</td>
               <td><Pessoa2 id={p.gestor_secundario_id} /></td>
               <td>{p.cargo ?? '—'}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{p.data_admissao ? p.data_admissao.split('-').reverse().join('/') : '—'}</td>
               <td>{perfilNome(p.perfil_id) ?? <span className="marcador m-alerta">Sem perfil</span>}</td>
               <td>{p.area ?? '—'}</td>
               <td>

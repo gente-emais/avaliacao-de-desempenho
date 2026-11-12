@@ -24,6 +24,7 @@ export default function FormColaborador({ pessoa, pessoas, perfis, onFechar, onS
       perfil_id: v('perfil') ? Number(v('perfil')) : null,
       gestor_id: v('gestor'), gestor_secundario_id: v('gestor2'), bp_id: v('bp'),
       papel: v('papel') ?? 'participante', acesso_assistido: f.get('assistido') === 'on', ativo: f.get('ativo') === 'on',
+      data_admissao: v('admissao'),
     }
     if (novo) {
       const cpf = String(f.get('cpf') ?? '').replace(/\D/g, '')
@@ -60,6 +61,7 @@ export default function FormColaborador({ pessoa, pessoas, perfis, onFechar, onS
         <label className="campo">E-mail<input name="email" type="email" defaultValue={p?.email ?? ''} /></label>
         <label className="campo">Cargo<input name="cargo" defaultValue={p?.cargo ?? ''} /></label>
         <label className="campo">Área<input name="area" defaultValue={p?.area ?? ''} /></label>
+        <label className="campo">Data de admissão<input name="admissao" type="date" defaultValue={p?.data_admissao ?? ''} /></label>
         <label className="campo">Perfil de avaliação (nível)
           <select name="perfil" defaultValue={p?.perfil_id ?? ''}>
             <option value="">Sem perfil (fora das rodadas)</option>

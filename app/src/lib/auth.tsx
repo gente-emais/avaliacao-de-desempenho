@@ -77,9 +77,11 @@ export const useAuth = () => useContext(Ctx)
 // Login por CPF: no Auth o login técnico é <cpf>@login.emais.app (nunca recebe e-mail).
 export const DOMINIO_LOGIN = 'login.emais.app'
 
-// Aceita CPF (colaboradores) ou e-mail (logins de teste e administradores).
-export async function entrarComCpf(cpfOuEmail: string, senha: string) {
-  const email = cpfOuEmail.includes('@') ? cpfOuEmail.trim().toLowerCase() : `${cpfOuEmail.replace(/\D/g, '')}@${DOMINIO_LOGIN}`
+// Login só por CPF (colaboradores e RH).
+export async function entrarComCpf(cpf: string, senha: string) {
+  const digitos = cpf.replace(/\D/g, '')
+  if (digitos.length !== 11) throw new Error('Digite os 11 números do CPF.')
+  const email = `${digitos}@${DOMINIO_LOGIN}`
   const { error } = await supabase.auth.signInWithPassword({ email, password: senha })
   if (error) throw new Error(/rate|many/i.test(error.message) ? 'Muitas tentativas. Aguarde alguns minutos.' : 'CPF ou senha incorretos.')
 }
