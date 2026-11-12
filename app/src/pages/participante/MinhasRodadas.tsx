@@ -37,12 +37,12 @@ const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: st
     ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado.',
   },
   feedback: {
-    resumo: 'É uma conversa no meio do caminho para você saber como está indo e ajustar a rota antes do Ciclo Avaliativo.',
+    resumo: 'É a etapa final do ano, depois do Ciclo Avaliativo: a conversa em que o gestor dá o retorno sobre o seu resultado e vocês combinam os próximos passos.',
     passos: [
-      { titulo: 'Conversa de feedback', quem: 'Você e seu gestor', texto: 'O gestor conversa com você sobre o que está funcionando bem e o que pode melhorar.' },
+      { titulo: 'Conversa de feedback', quem: 'Você e seu gestor', texto: 'Com o resultado do Ciclo Avaliativo em mãos, o gestor conversa com você sobre seus pontos fortes e o que você pode desenvolver.' },
       { titulo: 'Registro dos acordos', quem: 'Seu gestor', texto: 'O gestor registra no sistema os pontos conversados e os acordos feitos.' },
       { titulo: 'Sua resposta', quem: 'Você', texto: 'Você confirma se recebeu o feedback no prazo e se concorda com o que foi registrado. Se quiser, deixe um comentário.' },
-      { titulo: 'Próximos passos', quem: 'Você e seu gestor', texto: 'Coloque os acordos em prática. Eles podem virar ações do seu PDI e ser acompanhados nos One a One.' },
+      { titulo: 'Próximos passos', quem: 'Você e seu gestor', texto: 'Os acordos viram ações do seu PDI e são acompanhados nos One a One ao longo do próximo ciclo.' },
     ],
     ondeVer: 'Quando o gestor registrar o feedback, ele aparece aqui para você responder.',
   },
