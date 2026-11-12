@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { supabase, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
+import ComoFunciona, { type Explicacao } from '../../components/ComoFunciona'
 import { STATUS, TIPO_RODADA, dataHora, tituloTarefa, umAceite } from '../../lib/format'
 
 // Visão do colaborador por processo (Contratação, Ciclo Avaliativo, Ciclo de Feedback):
@@ -14,8 +15,7 @@ interface Item {
 }
 
 // Passo a passo de cada processo, em linguagem simples para o colaborador
-type Passo = { titulo: string; quem: string; texto: string }
-const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: string }> = {
+const EXPLICA: Record<TipoRodada, Explicacao> = {
   contratacao: {
     resumo: 'É o combinado do ano entre você e seu gestor: o que se espera do seu trabalho. Ele serve de base para o Ciclo Avaliativo.',
     passos: [
@@ -34,7 +34,7 @@ const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: st
       { titulo: 'Avaliação do gestor', quem: 'Seu gestor', texto: 'Seu gestor avalia você nas mesmas competências e registra a percepção dele sobre o seu potencial. Você não precisa fazer nada nesta etapa.' },
       { titulo: 'Devolutiva', quem: 'Você e seu gestor', texto: 'Conversa para alinhar o resultado, reconhecer seus pontos fortes e combinar o que desenvolver. Os combinados podem virar ações do seu PDI.' },
     ],
-    ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado.',
+    ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado. Depois vem o Ciclo de Feedback, que fecha a entrega do ciclo.',
   },
   feedback: {
     resumo: 'É a etapa final do ano, depois do Ciclo Avaliativo: a conversa em que o gestor dá o retorno sobre o seu resultado e vocês combinam os próximos passos.',
@@ -46,25 +46,6 @@ const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: st
     ],
     ondeVer: 'Quando o gestor registrar o feedback, ele aparece aqui para você responder.',
   },
-}
-
-function ComoFunciona({ tipo, aberto }: { tipo: TipoRodada; aberto: boolean }) {
-  const e = EXPLICA[tipo]
-  return (
-    <details className="card como-funciona" open={aberto}>
-      <summary><strong>Como funciona: {TIPO_RODADA[tipo]}</strong><span className="muted"> · passo a passo</span></summary>
-      <p style={{ margin: 0 }}>{e.resumo}</p>
-      <ol className="passos">
-        {e.passos.map((p, i) => (
-          <li key={i}>
-            <span className="passo-num">{i + 1}</span>
-            <div><strong>{p.titulo}</strong> <span className="passo-quem">{p.quem}</span><div className="muted">{p.texto}</div></div>
-          </li>
-        ))}
-      </ol>
-      <p className="muted" style={{ margin: 0 }}>{e.ondeVer}</p>
-    </details>
-  )
 }
 
 export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
@@ -126,7 +107,7 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
 
   return (
     <>
-      <ComoFunciona tipo={tipo} aberto={itens !== null && todasRodadas.length === 0} />
+      <ComoFunciona titulo={TIPO_RODADA[tipo]} explicacao={EXPLICA[tipo]} aberto={itens !== null && todasRodadas.length === 0} />
       {todasRodadas.length > 1 && (
         <nav className="anos" aria-label="Escolher a rodada">
           <span className="muted">Rodadas:</span>

@@ -1,3 +1,4 @@
+import ComoFunciona, { type Explicacao } from '../../components/ComoFunciona'
 import { useEffect, useState, type FormEvent } from 'react'
 import AbasMeuEspaco from '../../components/AbasMeuEspaco'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -13,6 +14,17 @@ interface Objetivo {
 }
 const STATUS_PDI = { nao_iniciado: ['Não iniciado', 'neutro'], em_andamento: ['Em andamento', 'pend'], concluido: ['Concluído', 'ok'] } as const
 const ANO = new Date().getFullYear()
+
+const COMO_PDI: Explicacao = {
+  resumo: 'O PDI (Plano de Desenvolvimento Individual) reúne o que você vai fazer para se desenvolver: cursos, leituras, projetos, congressos e imersões. Ele nasce, principalmente, dos combinados do Ciclo de Feedback.',
+  passos: [
+    { titulo: 'Crie um objetivo', quem: 'Você', texto: 'Clique em "+ Novo objetivo" e dê um nome claro, por exemplo "Melhorar a comunicação com clientes". Escolha o tipo: Desenvolvimento (evoluir no cargo atual) ou Carreira (preparar-se para um próximo passo).' },
+    { titulo: 'Defina prazo e esforço', quem: 'Você', texto: 'Informe as datas de início e fim, a carga horária prevista em horas e a competência da EMAIS que esse objetivo desenvolve. Na descrição, conte o que você quer alcançar.' },
+    { titulo: 'Divida em tarefas', quem: 'Você', texto: 'Dentro do objetivo, inclua as tarefas que levam até ele, como "Fazer o curso X" ou "Apresentar o aprendizado para a equipe". Marque cada tarefa quando concluir.' },
+    { titulo: 'Atualize a situação', quem: 'Você', texto: 'Mude o objetivo para Em andamento e, ao final, para Concluído. As horas dos objetivos concluídos aparecem no total do topo da página.' },
+    { titulo: 'Acompanhe com seu gestor', quem: 'Você e seu gestor', texto: 'Seu gestor acompanha o PDI e pode deixar comentários. Aproveite os One a One para conversar sobre o andamento.' },
+  ],
+}
 
 export default function Pdi() {
   const { eu, temEquipe } = useAuth()
@@ -92,6 +104,7 @@ export default function Pdi() {
         </div>
       </div>
       <AbasMeuEspaco />
+      <ComoFunciona titulo="PDI" explicacao={COMO_PDI} aberto={objs.length === 0} />
       {anosPdi.length > 0 && (
         <nav className="anos" aria-label="Ano do PDI">
           <span className="muted">Ano:</span>

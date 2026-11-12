@@ -1,3 +1,4 @@
+import ComoFunciona, { type Explicacao } from '../../components/ComoFunciona'
 import { useEffect, useState, type FormEvent } from 'react'
 import AbasMeuEspaco from '../../components/AbasMeuEspaco'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -9,6 +10,17 @@ interface Combinado { id: string; acao: string; prazo: string; status: 'aberto' 
 interface Encontro {
   id: string; gestor_id: string; liderado_id: string; data: string; pauta: string | null; anotacoes_compartilhadas: string | null
   proximo_encontro: string | null; gestor: { nome: string }; liderado: { nome: string }; combinados: Combinado[]
+}
+
+const COMO_ONE: Explicacao = {
+  resumo: 'São encontros trimestrais entre você e seu gestor, agendados por ele, para conversar sobre as atividades do dia a dia: o que está indo bem, as prioridades e onde você precisa de apoio.',
+  passos: [
+    { titulo: 'Agendamento', quem: 'Seu gestor', texto: 'A cada trimestre, o gestor marca o encontro e registra a pauta. A data do próximo encontro também fica registrada aqui.' },
+    { titulo: 'Preparação', quem: 'Você', texto: 'Antes do encontro, leia a pauta e anote o que quer levar: entregas, dificuldades, ideias. O Diário de bordo ajuda a lembrar.' },
+    { titulo: 'Conversa', quem: 'Você e seu gestor', texto: 'Falem sobre as atividades do dia a dia, as prioridades do trimestre e o andamento do seu PDI.' },
+    { titulo: 'Combinados', quem: 'Você e seu gestor', texto: 'As ações combinadas ficam registradas com responsável e prazo, junto com as anotações do gestor que você também pode ler. No próximo encontro, vocês retomam o que foi combinado.' },
+  ],
+  ondeVer: 'Se você é gestor, use "+ Novo encontro" para agendar com cada pessoa da equipe. As anotações privadas só você vê.',
 }
 
 export default function OneAOne() {
@@ -83,6 +95,7 @@ export default function OneAOne() {
         {temEquipe && <button className="primario" onClick={() => setNovo(!novo)}>+ Novo encontro</button>}
       </div>
       <AbasMeuEspaco />
+      <ComoFunciona titulo="One a One" explicacao={COMO_ONE} aberto={lista.length === 0} />
       {anosOne.length > 0 && (
         <nav className="anos" aria-label="Ano dos encontros">
           <span className="muted">Ano:</span>
