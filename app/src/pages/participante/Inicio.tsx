@@ -28,9 +28,9 @@ const SELECT = `id, grupo, status, avaliado_id, avaliador_id,
   aceite:aceites(aceito_em)`
 
 const PROCESSOS: { tipo: TipoRodada; nome: string }[] = [
+  { tipo: 'contratacao', nome: 'Contratação de Desempenho' },
   { tipo: 'avaliativo', nome: 'Ciclo Avaliativo' },
   { tipo: 'feedback', nome: 'Ciclo de Feedback' },
-  { tipo: 'contratacao', nome: 'Contratação de Desempenho' },
 ]
 const hoje = new Date().toISOString().slice(0, 10)
 const ddmm = (d: string) => data(d).slice(0, 5)
@@ -103,7 +103,8 @@ export default function Inicio() {
     + (tipo === 'avaliativo' ? revisoes.length : 0) + (tipo === 'contratacao' ? aceites.length : 0)
   const totalPend = PROCESSOS.reduce((s, p) => s + pendDe(p.tipo), 0)
   const rodadasAbertas = new Set(tarefas.map((t) => t.rodada.id)).size
-  const blocos = [...PROCESSOS].sort((a, b) => Number(pendDe(b.tipo) > 0) - Number(pendDe(a.tipo) > 0))
+  // ordem fixa da jornada: Contratação → Ciclo Avaliativo → Ciclo de Feedback
+  const blocos = PROCESSOS
 
   function Bloco({ tipo, nome }: { tipo: TipoRodada; nome: string }) {
     const n = pendDe(tipo)
