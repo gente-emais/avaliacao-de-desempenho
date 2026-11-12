@@ -11,6 +11,7 @@ import Inicio from './pages/participante/Inicio'
 import Equipe from './pages/participante/Equipe'
 import Formulario from './pages/participante/Formulario'
 import MinhaAutoavaliacao from './pages/participante/MinhaAutoavaliacao'
+import Diario from './pages/participante/Diario'
 import MeuResultado from './pages/participante/MeuResultado'
 import Pdi from './pages/participante/Pdi'
 import OneAOne from './pages/participante/OneAOne'
@@ -46,6 +47,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route element={<Protegido><Layout /></Protegido>}>
             <Route index element={<Inicio />} />
             <Route path="autoavaliacao" element={<MinhaAutoavaliacao />} />
+            <Route path="diario" element={<Diario />} />
             <Route path="equipe" element={<Equipe />} />
             <Route path="avaliacao/:id" element={<Formulario />} />
             <Route path="resultado" element={<MeuResultado />} />

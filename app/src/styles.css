@@ -238,3 +238,17 @@ tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: #f6f9ff; }
 .passo-num.off { background: var(--gelo); color: var(--cinza-verde); }
 .passo .etapa { flex: 1; }
 .etapa.continuo { flex-direction: row; justify-content: space-between; align-items: center; }
+
+/* Diário de bordo */
+.diario { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .diario { grid-template-columns: 1fr; } }
+.chip { min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; }
+.chip.on { background: var(--verde-escuro); border-color: var(--verde-escuro); color: #fff; }
+.registro { background: #fff; border: 1px solid var(--borda); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.registro h3 { font-size: 15px; }
+.mes-titulo { font-size: 13px; font-weight: 800; color: var(--cinza-verde); text-transform: uppercase; letter-spacing: .08em; margin-top: 6px; }
+.m-ok { background: var(--ok-bg); color: var(--ok); } .m-comp { background: #eef2f7; color: var(--cinza-verde); border-radius: 6px; }
+.comentario-gestor { background: #f8fafd; border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+.diario-lista { border: 1px dashed var(--borda-forte); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: #fbfcfe; }
+.diario-lista .item { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; font-size: 13px; border-top: 1px solid #eef2f8; padding-top: 8px; }
+.diario-lista .item:first-of-type { border-top: 0; padding-top: 0; }

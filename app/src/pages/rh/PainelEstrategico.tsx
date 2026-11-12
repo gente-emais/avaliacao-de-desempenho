@@ -18,6 +18,7 @@ interface Dados {
   encontros: { gestor: string; liderado: string; data: string }[]
   combinados: { responsavel: string; prazo: string; status: string }[]
   pdi: { pessoa: string; status: string; horas: number | null; fim: string }[]
+  diario?: { pessoa_id: string; registros: number; compartilhados: number; comentados: number; usados: number }[]
 }
 type Cel = string | number
 interface Detalhe { titulo: string; sub?: string; colunas: string[]; linhas: Cel[][] }
@@ -44,7 +45,10 @@ export default function PainelEstrategico() {
 
   useEffect(() => {
     setD(null); setErro('')
-    rpc<Dados>('painel_estrategico', { p_ano: ano }).then(setD).catch((e) => setErro((e as Error).message))
+    Promise.all([
+      rpc<Dados>('painel_estrategico', { p_ano: ano }),
+      rpc<Dados['diario']>('diario_indicadores', { p_ano: ano }).catch(() => []),
+    ]).then(([x, di]) => setD({ ...x, diario: di ?? [] })).catch((e) => setErro((e as Error).message))
   }, [ano])
 
   const c = useMemo(() => (d ? calcular(d, area, gestor) : null), [d, area, gestor])
@@ -261,6 +265,8 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
     { chave: 'fb', quando: '', desc: 'Gestor registra o feedback e o colaborador responde', nome: 'Ciclo de Feedback', pct: rodada('feedback') ? pct(fb.filter((a) => feito(a.status)).length, fb.length) : null,
       resumo: rodada('feedback') ? `${fb.filter((a) => feito(a.status)).length} de ${fb.length}` : 'ainda não aberto', detalhe: detAv('Ciclo de Feedback', fb, GRUPO_FB) },
   ]
+  const diarioP = (d.diario ?? []).filter((x) => ids.has(x.pessoa_id))
+  const comDiario = new Set(diarioP.map((x) => x.pessoa_id))
   const continuos = [
     { chave: 'one', quando: 'Contínuo', desc: '', nome: 'One a One', pct: pct(gestoresMes, gestoresIds.length), resumo: `${gestoresMes} de ${gestoresIds.length} gestores no mês`,
       detalhe: { titulo: 'One a One · encontros por gestor', sub: 'Gestores com time nos filtros atuais', colunas: ['Gestor', 'Time', 'Encontros (90 dias)', 'Último encontro'],
@@ -268,6 +274,9 @@ export function calcular(d: Dados, area: string, gestorSel: string) {
     { chave: 'pdi', quando: 'Contínuo', desc: '', nome: 'PDI', pct: pct(comPdi, pessoas.length), resumo: `${comPdi} de ${pessoas.length} com PDI`,
       detalhe: { titulo: `PDI ${d.ano} por pessoa`, colunas: ['Colaborador', 'Área', 'Gestor', 'Objetivos', 'Concluídos'],
         linhas: pessoas.map((p) => { const o = d.pdi.filter((x) => x.pessoa === p.id); return [p.nome, p.area ?? '—', nome(p.gestor_id), o.length, o.filter((x) => x.status === 'concluido').length] as Cel[] }).sort((a, b) => Number(a[3]) - Number(b[3])) } },
+    { chave: 'diario', quando: 'Contínuo', desc: '', nome: 'Diário de bordo', pct: pct(comDiario.size, pessoas.length), resumo: `${comDiario.size} de ${pessoas.length} com registro no ano`,
+      detalhe: { titulo: `Diário de bordo ${d.ano} · por pessoa`, sub: 'Só números: o conteúdo é do colaborador e do gestor', colunas: ['Colaborador', 'Área', 'Gestor', 'Registros', 'Compartilhados', 'Comentados pelo gestor', 'Usados como evidência'],
+        linhas: pessoas.map((p) => { const x = diarioP.find((y) => y.pessoa_id === p.id); return [p.nome, p.area ?? '—', nome(p.gestor_id), x?.registros ?? 0, x?.compartilhados ?? 0, x?.comentados ?? 0, x?.usados ?? 0] as Cel[] }).sort((a, b) => Number(a[3]) - Number(b[3])) } }
   ]
 
   // KPIs

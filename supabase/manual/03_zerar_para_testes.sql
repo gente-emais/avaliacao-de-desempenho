@@ -20,6 +20,9 @@ delete from public.faixas_classificacao where rodada_id is not null;
 delete from public.notificacoes;
 delete from public.rodadas;
 
+delete from public.diario_usos;
+delete from public.diario_comentarios;
+delete from public.diario_registros;
 delete from public.pdi_comentarios;
 delete from public.pdi_tarefas;
 delete from public.encontro_combinados;

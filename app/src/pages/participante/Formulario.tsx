@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
-import { GRUPO, STATUS, dataHora, umAceite } from '../../lib/format'
+import { GRUPO, STATUS, dataHora, umAceite, data as dataBr } from '../../lib/format'
+import { SELECT_DIARIO, TIPOS, type Registro } from './Diario'
 
 interface Pergunta {
   id: number; ordem: number; texto: string; tipo: 'escala' | 'aberta' | 'sim_nao' | 'escolha'
@@ -10,7 +11,7 @@ interface Pergunta {
   evidencia_rotulo: string | null; pergunta_mae_id: number | null; condicao_valor: string | null
   min_caracteres: number; min_palavras: number; ativa: boolean
 }
-interface Bloco { ordem: number; entra_na_nota: boolean; bloco: { id: number; nome: string; tipo: string; perguntas: Pergunta[] } }
+interface Bloco { ordem: number; entra_na_nota: boolean; bloco: { id: number; nome: string; tipo: string; competencia_id: number | null; perguntas: Pergunta[] } }
 interface Resposta { pergunta_id: number; valor: number | null; opcao: string | null; texto: string | null; evidencia: string | null }
 interface Avaliacao {
   id: string; grupo: Grupo; status: StatusAvaliacao; formulario_id: number; avaliado_id: string; avaliador_id: string
@@ -44,6 +45,10 @@ export default function Formulario() {
   const [faixasRev, setFaixasRev] = useState<{ nome: string; minimo: number; maximo: number }[]>([])
   const [comentario, setComentario] = useState('')
   const timers = useRef<Record<number, number>>({})
+  const [diario, setDiario] = useState<Registro[]>([])
+  const [usados, setUsados] = useState<Set<string>>(new Set())
+  const [diarioAberto, setDiarioAberto] = useState<number | null>(null)
+  const [diarioTodas, setDiarioTodas] = useState(false)
 
   useEffect(() => {
     async function carregar() {
@@ -56,7 +61,7 @@ export default function Formulario() {
       const aval = a as unknown as Avaliacao
       setAv(aval)
       const [b, o, r] = await Promise.all([
-        supabase.from('formulario_blocos').select('ordem, entra_na_nota, bloco:blocos(id, nome, tipo, perguntas(*))')
+        supabase.from('formulario_blocos').select('ordem, entra_na_nota, bloco:blocos(id, nome, tipo, competencia_id, perguntas(*))')
           .eq('formulario_id', aval.formulario_id).eq('grupo', aval.grupo).order('ordem'),
         supabase.from('escala_opcoes').select('escala_id, valor, rotulo').order('ordem'),
         supabase.from('respostas').select('pergunta_id, valor, opcao, texto, evidencia').eq('avaliacao_id', aval.id),
@@ -68,6 +73,15 @@ export default function Formulario() {
       setOpcoes((o.data as Opcao[]) ?? [])
       setResp(Object.fromEntries(((r.data as Resposta[]) ?? []).map((x) => [x.pergunta_id, x])))
 
+      // Diário de bordo do avaliado (o gestor vê só o que foi compartilhado)
+      if (aval.rodada.tipo === 'avaliativo' && (aval.grupo === 'gestor' || aval.grupo === 'auto')) {
+        const [{ data: dr }, { data: du }] = await Promise.all([
+          supabase.from('diario_registros').select(SELECT_DIARIO).eq('pessoa_id', aval.avaliado_id).order('data', { ascending: false }),
+          supabase.from('diario_usos').select('registro_id, pergunta_id').eq('avaliacao_id', aval.id),
+        ])
+        setDiario((dr as unknown as Registro[]) ?? [])
+        setUsados(new Set(((du as { registro_id: string; pergunta_id: number }[]) ?? []).map((u) => `${u.registro_id}:${u.pergunta_id}`)))
+      }
       // Gestor vê a autoavaliação ao lado (Ciclo Avaliativo)
       if (aval.grupo === 'gestor' && aval.rodada.tipo === 'avaliativo') {
         const { data: aa } = await supabase.from('avaliacoes').select('id').eq('rodada_id', aval.rodada.id)
@@ -108,6 +122,15 @@ export default function Formulario() {
     const r = resp[p.id]
     return p.tipo === 'escala' ? r?.valor != null : p.tipo === 'aberta' ? (r?.texto ?? '').trim().length > 0 : !!r?.opcao
   })
+
+  async function usarDiario(reg: Registro, pid: number) {
+    if (!av || !eu) return
+    const atual = (resp[pid] ?? vazia(pid)).evidencia?.trim() ?? ''
+    const trecho = `${reg.titulo} (${dataBr(reg.data)}, diário de bordo)${reg.descricao ? `: ${reg.descricao}` : ''}`
+    alterar(pid, 'evidencia', atual ? `${atual}\n${trecho}` : trecho)
+    await supabase.from('diario_usos').insert({ registro_id: reg.id, avaliacao_id: av.id, pergunta_id: pid, usado_por: eu.id })
+    setUsados((u) => new Set(u).add(`${reg.id}:${pid}`))
+  }
 
   function alterar(pid: number, campo: keyof Resposta, valor: string | number | null) {
     if (!editavel || !av) return
@@ -243,6 +266,34 @@ export default function Formulario() {
                       onChange={(v) => alterar(p.id, 'evidencia', v)} rotulo={p.evidencia_rotulo ?? 'Evidências'} />
                   </label>
                 )}
+                {p.pede_evidencia && editavel && diario.length > 0 && (() => {
+                  const daComp = diario.filter((d) => d.competencia_id === b.bloco.competencia_id)
+                  const itens = diarioTodas || !daComp.length ? diario : daComp
+                  return diarioAberto === p.id ? (
+                    <div className="diario-lista">
+                      <div className="linha entre">
+                        <strong style={{ fontSize: 13 }}>Diário de bordo{av.grupo === 'gestor' ? ` de ${av.avaliado.nome.split(' ')[0]}` : ''}</strong>
+                        <div className="linha">
+                          {daComp.length > 0 && <button type="button" className="pequeno" onClick={() => setDiarioTodas(!diarioTodas)}>{diarioTodas ? 'Só desta competência' : 'Ver todos'}</button>}
+                          <button type="button" className="pequeno" onClick={() => setDiarioAberto(null)}>Fechar</button>
+                        </div>
+                      </div>
+                      {itens.map((d) => {
+                        const usado = usados.has(`${d.id}:${p.id}`)
+                        return (
+                          <div key={d.id} className="item">
+                            <div><span className={`marcador ${TIPOS[d.tipo]?.[1]}`}>{TIPOS[d.tipo]?.[0]}</span> <span className="muted">{dataBr(d.data)}</span><br /><b>{d.titulo}</b>{d.descricao && <div className="muted">{d.descricao}</div>}</div>
+                            <button type="button" className="pequeno" disabled={usado} onClick={() => usarDiario(d, p.id)}>{usado ? '✓ Usado' : '+ Usar na evidência'}</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <button type="button" className="pequeno" style={{ alignSelf: 'flex-start' }} onClick={() => { setDiarioAberto(p.id); setDiarioTodas(false) }}>
+                      Trazer do diário de bordo ({daComp.length || diario.length})
+                    </button>
+                  )
+                })()}
                 {ref && p.tipo === 'escala' && ref.valor != null && (
                   <span className="auto-ref">Autoavaliação: {ops.find((o) => Number(o.valor) === Number(ref.valor))?.rotulo}{ref.evidencia ? ` — "${ref.evidencia}"` : ''}</span>
                 )}

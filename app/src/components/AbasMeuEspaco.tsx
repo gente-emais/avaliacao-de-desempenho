@@ -6,13 +6,14 @@ const ABAS = [
   { id: 'contratacao', rotulo: 'Contratação de Desempenho', to: '/?aba=contratacao' },
   { id: 'avaliativo', rotulo: 'Ciclo Avaliativo', to: '/?aba=avaliativo' },
   { id: 'feedback', rotulo: 'Ciclo de Feedback', to: '/?aba=feedback' },
+  { id: 'diario', rotulo: 'Diário de bordo', to: '/diario' },
   { id: 'pdi', rotulo: 'PDI', to: '/pdi' },
   { id: 'one', rotulo: 'One a One', to: '/one-a-one' },
 ]
 
 export default function AbasMeuEspaco() {
   const { pathname, search } = useLocation()
-  const aba = pathname.endsWith('/pdi') ? 'pdi' : pathname.endsWith('/one-a-one') ? 'one'
+  const aba = pathname.endsWith('/diario') ? 'diario' : pathname.endsWith('/pdi') ? 'pdi' : pathname.endsWith('/one-a-one') ? 'one'
     : new URLSearchParams(search).get('aba') ?? 'agora'
   return (
     <nav aria-label="Processos do Meu espaço" className="abas">
