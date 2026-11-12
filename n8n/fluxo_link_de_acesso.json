@@ -1,0 +1,31 @@
+{
+  "name": "EMAIS Desempenho · Link de acesso",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "emais-desempenho-acesso", "options": {} },
+      "name": "Recebe pedido do sistema",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "emais-desempenho-acesso"
+    },
+    {
+      "parameters": {
+        "fromEmail": "TROQUE-PELO-REMETENTE@emais.com",
+        "toEmail": "={{ $json.body.email }}",
+        "subject": "Seu acesso ao EMAIS Desempenho",
+        "emailFormat": "html",
+        "html": "=<p>Olá, {{ $json.body.nome }}.</p><p>Recebemos um pedido de acesso ao <b>EMAIS Desempenho</b>. Clique no botão abaixo para criar ou trocar a sua senha:</p><p><a href=\"{{ $json.body.link }}\" style=\"background:#1e756a;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block\">Criar minha senha</a></p><p>O link vale por 24 horas. Para entrar, use o seu CPF e a senha que você criar.</p><p>Se você não pediu esse acesso, ignore este e-mail.</p><p>Time de Gente e Gestão · EMAIS Urbanismo</p>",
+        "options": {}
+      },
+      "name": "Envia e-mail",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Recebe pedido do sistema": { "main": [[{ "node": "Envia e-mail", "type": "main", "index": 0 }]] }
+  },
+  "settings": {}
+}

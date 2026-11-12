@@ -91,5 +91,10 @@ export async function pedirLinkDeSenha(cpf: string) {
   const { error } = await supabase.functions.invoke('enviar-acesso', {
     body: { cpf, redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}definir-senha` },
   })
-  if (error) throw new Error('Não foi possível enviar o link agora. Procure o time de Gente e Gestão.')
+  if (error) {
+    const st = (error as { context?: { status?: number } }).context?.status
+    throw new Error(st === 503
+      ? 'O envio de e-mail ainda não foi ativado. Procure o time de Gente e Gestão.'
+      : 'Não foi possível enviar o link agora. Procure o time de Gente e Gestão.')
+  }
 }

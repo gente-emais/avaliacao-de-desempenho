@@ -271,3 +271,9 @@ tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: #f6f9ff; }
 .passos li { display: flex; gap: 12px; align-items: flex-start; }
 .passo-num { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--verde-escuro); color: #fff; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
 .passo-quem { font-size: 12px; font-weight: 600; color: var(--verde-escuro); background: #eaf4f0; border-radius: 999px; padding: 2px 8px; margin-left: 4px; white-space: nowrap; }
+
+/* Diário de bordo: cartões de número em coluna e visão do gestor em uma coluna só */
+div.kpi-filtro { display: flex; min-width: 0; }
+div.kpi-filtro .muted { overflow-wrap: anywhere; }
+.diario.so-lista { grid-template-columns: minmax(0, 1fr); }
+.diario .linha.entre { flex-wrap: wrap; gap: 10px; }

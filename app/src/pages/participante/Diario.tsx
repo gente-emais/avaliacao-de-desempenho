@@ -101,14 +101,14 @@ export default function Diario() {
       </p>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
 
-      <div className="grade" style={{ ['--min' as string]: '170px' }}>
+      <div className="grade" style={{ ['--min' as string]: '160px' }}>
         <div className="kpi-filtro"><span className="muted">Registros em {ano}</span><b>{doAno.length}</b></div>
         <div className="kpi-filtro"><span className="muted">Compartilhados com o gestor</span><b>{doAno.filter((r) => r.compartilhado).length}</b></div>
         <div className="kpi-filtro"><span className="muted">Comentados pelo gestor</span><b>{doAno.filter((r) => r.comentarios.length).length}</b></div>
         <div className="kpi-filtro"><span className="muted">Usados como evidência</span><b>{doAno.filter((r) => r.usos.length).length}</b></div>
       </div>
 
-      <div className="diario">
+      <div className={`diario${proprio ? '' : ' so-lista'}`}>
         {proprio && (
           <form className="card" onSubmit={salvar} key={editando?.id ?? 'novo'}>
             <h2>{editando ? 'Editar registro' : 'Novo registro'}</h2>
