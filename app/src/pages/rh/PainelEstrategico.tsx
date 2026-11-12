@@ -195,24 +195,54 @@ export default function PainelEstrategico() {
         </section>
       </div>
 
-      {det && (
-        <div className="gaveta-fundo" onClick={() => setDet(null)}>
-          <aside className="gaveta" role="dialog" aria-modal="true" aria-label={det.titulo} onClick={(e) => e.stopPropagation()}>
-            <div className="linha entre">
-              <div><h2>{det.titulo}</h2>{det.sub && <span className="muted">{det.sub}</span>}</div>
-              <div className="linha">
-                <button className="pequeno" onClick={() => baixarCsv(`${det.titulo}.csv`, [det.colunas, ...det.linhas])}>Exportar</button>
-                <button className="pequeno" onClick={() => setDet(null)} aria-label="Fechar">Fechar</button>
-              </div>
-            </div>
-            <p className="muted">{det.linhas.length} {det.linhas.length === 1 ? 'linha' : 'linhas'}</p>
-            <div className="tabela-box"><table>
-              <thead><tr>{det.colunas.map((x) => <th key={x}>{x}</th>)}</tr></thead>
-              <tbody>{det.linhas.map((l, i) => <tr key={i}>{l.map((x, j) => <td key={j}>{x}</td>)}</tr>)}</tbody>
-            </table></div>
-          </aside>
+      {det && <GavetaDetalhe key={det.titulo} det={det} onFechar={() => setDet(null)} />}
+    </div>
+  )
+}
+
+// Gaveta de detalhamento: busca por nome (ou qualquer texto) e filtros pelas colunas com poucas opções
+const semAcento = (t: Cel) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+function GavetaDetalhe({ det, onFechar }: { det: Detalhe; onFechar: () => void }) {
+  const [busca, setBusca] = useState('')
+  const [filtros, setFiltros] = useState<Record<number, string>>({})
+  const opcoes = det.colunas.map((_, j) => {
+    const v = [...new Set(det.linhas.map((l) => String(l[j] ?? '')))].filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    return v.length >= 2 && v.length <= 40 && v.length < det.linhas.length ? v : null
+  })
+  const b = semAcento(busca.trim())
+  const linhas = det.linhas.filter((l) =>
+    (!b || l.some((x) => semAcento(x).includes(b))) &&
+    Object.entries(filtros).every(([j, v]) => !v || String(l[Number(j)] ?? '') === v))
+  const filtrando = !!b || Object.values(filtros).some(Boolean)
+  return (
+    <div className="gaveta-fundo" onClick={onFechar}>
+      <aside className="gaveta" role="dialog" aria-modal="true" aria-label={det.titulo} onClick={(e) => e.stopPropagation()}>
+        <div className="linha entre">
+          <div><h2>{det.titulo}</h2>{det.sub && <span className="muted">{det.sub}</span>}</div>
+          <div className="linha">
+            <button className="pequeno" onClick={() => baixarCsv(`${det.titulo}.csv`, [det.colunas, ...linhas])}>Exportar</button>
+            <button className="pequeno" onClick={onFechar} aria-label="Fechar">Fechar</button>
+          </div>
         </div>
-      )}
+        <div className="gaveta-filtros">
+          <input type="search" placeholder="Buscar por nome, área, gestor…" value={busca} onChange={(e) => setBusca(e.target.value)} aria-label="Buscar" autoFocus />
+          {opcoes.map((ops, j) => ops && (
+            <select key={j} value={filtros[j] ?? ''} onChange={(e) => setFiltros({ ...filtros, [j]: e.target.value })} aria-label={det.colunas[j]}>
+              <option value="">{det.colunas[j]}: todos</option>
+              {ops.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          ))}
+          {filtrando && <button className="pequeno" onClick={() => { setBusca(''); setFiltros({}) }}>Limpar filtros</button>}
+        </div>
+        <p className="muted">{filtrando ? `${linhas.length} de ${det.linhas.length} linhas` : `${det.linhas.length} ${det.linhas.length === 1 ? 'linha' : 'linhas'}`}</p>
+        <div className="tabela-box"><table>
+          <thead><tr>{det.colunas.map((x) => <th key={x}>{x}</th>)}</tr></thead>
+          <tbody>
+            {linhas.map((l, i) => <tr key={i}>{l.map((x, j) => <td key={j}>{x}</td>)}</tr>)}
+            {linhas.length === 0 && <tr><td colSpan={det.colunas.length} className="muted">Nada encontrado com esses filtros.</td></tr>}
+          </tbody>
+        </table></div>
+      </aside>
     </div>
   )
 }

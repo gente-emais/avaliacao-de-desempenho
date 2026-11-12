@@ -286,3 +286,8 @@ fieldset.pergunta { border-left: 0; border-right: 0; border-bottom: 0; }
 .pergunta.com-erro { border: 1px solid #f0b4a8; border-left: 4px solid #d9534f; background: #fff7f5; border-radius: 10px; padding: 14px 16px; }
 .pergunta.com-erro + .pergunta { border-top: 0; }
 .erro-campo { color: #b42318; font-size: 13px; font-weight: 600; }
+
+/* Gaveta do painel: busca e filtros */
+.gaveta-filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gaveta-filtros input[type=search] { flex: 1 1 220px; min-width: 0; }
+.gaveta-filtros select { flex: 0 1 200px; min-width: 0; }
