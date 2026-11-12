@@ -13,10 +13,59 @@ interface Item {
   aceite: { aceito_em: string } | { aceito_em: string }[] | null
 }
 
-const EXPLICA: Record<TipoRodada, string> = {
-  contratacao: 'O gestor registra o que foi combinado para o ano e você dá o aceite de que leu e está ciente.',
-  avaliativo: 'Pré-work, autoavaliação, avaliação do seu gestor e, conforme o seu perfil, avaliação de pares. O resultado aparece em Meu resultado quando o RH liberar.',
-  feedback: 'O gestor registra os acordos da conversa de feedback e você responde se recebeu no prazo e se concorda.',
+// Passo a passo de cada processo, em linguagem simples para o colaborador
+type Passo = { titulo: string; quem: string; texto: string }
+const EXPLICA: Record<TipoRodada, { resumo: string; passos: Passo[]; ondeVer: string }> = {
+  contratacao: {
+    resumo: 'É o combinado do ano entre você e seu gestor: o que se espera do seu trabalho. Ele serve de base para o Ciclo Avaliativo.',
+    passos: [
+      { titulo: 'Conversa de contratação', quem: 'Você e seu gestor', texto: 'No início do ciclo, vocês conversam sobre suas entregas, metas e os comportamentos esperados para o ano.' },
+      { titulo: 'Registro do combinado', quem: 'Seu gestor', texto: 'O gestor registra no sistema o que foi combinado. Você não precisa preencher nada nesta etapa.' },
+      { titulo: 'Seu aceite', quem: 'Você', texto: 'Leia o registro e confirme em "Li e estou ciente". Se algo não estiver como foi conversado, fale com seu gestor antes de dar o aceite.' },
+      { titulo: 'Acompanhamento', quem: 'Ao longo do ano', texto: 'Retome esse combinado nos One a One e registre suas entregas no Diário de bordo. Isso ajuda muito na hora da avaliação.' },
+    ],
+    ondeVer: 'Quando o gestor registrar a sua contratação, ela aparece aqui com o botão "Ler e dar aceite".',
+  },
+  avaliativo: {
+    resumo: 'É o momento de olhar para o seu desempenho no período, nas competências da EMAIS. Cada competência recebe uma faixa: A desenvolver, Em desenvolvimento, Desenvolvido ou Consolidado.',
+    passos: [
+      { titulo: 'Pré-work', quem: 'Você', texto: 'Algumas perguntas rápidas sobre você, como escolaridade e formação. Elas vêm junto com a sua autoavaliação.' },
+      { titulo: 'Autoavaliação', quem: 'Você', texto: 'Em cada competência, escolha a faixa que melhor descreve como você atuou no período e comente com exemplos reais. Dica: o Diário de bordo ajuda a lembrar suas entregas.' },
+      { titulo: 'Avaliação do gestor', quem: 'Seu gestor', texto: 'Seu gestor avalia você nas mesmas competências e registra a percepção dele sobre o seu potencial. Você não precisa fazer nada nesta etapa.' },
+      { titulo: 'Pares e equipe', quem: 'Conforme o seu perfil', texto: 'Em alguns perfis, colegas do mesmo nível também se avaliam. Se você tem equipe, ela avalia você como líder: as respostas são anônimas e só aparecem com pelo menos 3 respondentes.' },
+      { titulo: 'Devolutiva', quem: 'Você e seu gestor', texto: 'Conversa para alinhar o resultado, reconhecer seus pontos fortes e combinar o que desenvolver. Os combinados podem virar ações do seu PDI.' },
+    ],
+    ondeVer: 'Quando o RH liberar, o resultado completo, com as avaliações e os comentários, aparece em Meu resultado.',
+  },
+  feedback: {
+    resumo: 'É uma conversa no meio do caminho para você saber como está indo e ajustar a rota antes do Ciclo Avaliativo.',
+    passos: [
+      { titulo: 'Conversa de feedback', quem: 'Você e seu gestor', texto: 'O gestor conversa com você sobre o que está funcionando bem e o que pode melhorar.' },
+      { titulo: 'Registro dos acordos', quem: 'Seu gestor', texto: 'O gestor registra no sistema os pontos conversados e os acordos feitos.' },
+      { titulo: 'Sua resposta', quem: 'Você', texto: 'Você confirma se recebeu o feedback no prazo e se concorda com o que foi registrado. Se quiser, deixe um comentário.' },
+      { titulo: 'Próximos passos', quem: 'Você e seu gestor', texto: 'Coloque os acordos em prática. Eles podem virar ações do seu PDI e ser acompanhados nos One a One.' },
+    ],
+    ondeVer: 'Quando o gestor registrar o feedback, ele aparece aqui para você responder.',
+  },
+}
+
+function ComoFunciona({ tipo, aberto }: { tipo: TipoRodada; aberto: boolean }) {
+  const e = EXPLICA[tipo]
+  return (
+    <details className="card como-funciona" open={aberto}>
+      <summary><strong>Como funciona: {TIPO_RODADA[tipo]}</strong><span className="muted"> · passo a passo</span></summary>
+      <p style={{ margin: 0 }}>{e.resumo}</p>
+      <ol className="passos">
+        {e.passos.map((p, i) => (
+          <li key={i}>
+            <span className="passo-num">{i + 1}</span>
+            <div><strong>{p.titulo}</strong> <span className="passo-quem">{p.quem}</span><div className="muted">{p.texto}</div></div>
+          </li>
+        ))}
+      </ol>
+      <p className="muted" style={{ margin: 0 }}>{e.ondeVer}</p>
+    </details>
+  )
 }
 
 export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
@@ -78,7 +127,7 @@ export default function MinhasRodadas({ tipo }: { tipo: TipoRodada }) {
 
   return (
     <>
-      <p className="muted" style={{ maxWidth: 820 }}>{EXPLICA[tipo]}</p>
+      <ComoFunciona tipo={tipo} aberto={itens !== null && todasRodadas.length === 0} />
       {todasRodadas.length > 1 && (
         <nav className="anos" aria-label="Escolher a rodada">
           <span className="muted">Rodadas:</span>

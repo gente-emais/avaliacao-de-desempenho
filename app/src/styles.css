@@ -259,3 +259,15 @@ tr.clicavel { cursor: pointer; } tr.clicavel:hover td { background: #f6f9ff; }
 .tabela-base td.marcadores { display: table-cell; }
 .tabela-base td.marcadores .marcador, .tabela-base td.marcadores .pill { display: inline-block; margin: 0 4px 4px 0; white-space: nowrap; }
 .tabela-base .acoes-menu summary { white-space: nowrap; }
+
+/* Meu espaço: passo a passo de cada processo */
+.como-funciona { display: block; }
+.como-funciona > * + * { margin-top: 14px !important; }
+.como-funciona summary { cursor: pointer; list-style: none; }
+.como-funciona summary::-webkit-details-marker { display: none; }
+.como-funciona summary::before { content: '▸ '; color: var(--verde-escuro); }
+.como-funciona[open] summary::before { content: '▾ '; }
+.passos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.passos li { display: flex; gap: 12px; align-items: flex-start; }
+.passo-num { flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--verde-escuro); color: #fff; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+.passo-quem { font-size: 12px; font-weight: 600; color: var(--verde-escuro); background: #eaf4f0; border-radius: 999px; padding: 2px 8px; margin-left: 4px; white-space: nowrap; }
