@@ -280,3 +280,9 @@ div.kpi-filtro .muted { overflow-wrap: anywhere; }
 
 /* Minha equipe: botões do cartão com o mesmo tamanho e a mesma letra */
 .acao-equipe { width: 100%; min-height: 40px; justify-content: center; text-align: center; font-size: 14px; font-weight: 600; padding: 0 14px; }
+
+/* Formulário: erro embaixo de cada pergunta incompleta */
+fieldset.pergunta { border-left: 0; border-right: 0; border-bottom: 0; }
+.pergunta.com-erro { border: 1px solid #f0b4a8; border-left: 4px solid #d9534f; background: #fff7f5; border-radius: 10px; padding: 14px 16px; }
+.pergunta.com-erro + .pergunta { border-top: 0; }
+.erro-campo { color: #b42318; font-size: 13px; font-weight: 600; }

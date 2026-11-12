@@ -136,6 +136,7 @@ export default function Formulario() {
     if (!editavel || !av) return
     const nova = { ...(resp[pid] ?? vazia(pid)), [campo]: valor }
     setResp((r) => ({ ...r, [pid]: nova }))
+    setFaltando((f) => (f.some((x) => x.pergunta_id === pid) ? f.filter((x) => x.pergunta_id !== pid) : f))
     window.clearTimeout(timers.current[pid])
     timers.current[pid] = window.setTimeout(async () => {
       const { error } = await supabase.from('respostas').upsert(
@@ -152,7 +153,13 @@ export default function Formulario() {
     await new Promise((r) => setTimeout(r, 800)) // garante que o último salvamento terminou
     try {
       const r = await rpc<{ ok: boolean; status?: string; faltando?: typeof faltando }>('enviar_avaliacao', { p_avaliacao: av.id })
-      if (!r.ok) { setFaltando(r.faltando ?? []); window.scrollTo({ top: 0, behavior: 'smooth' }); return }
+      if (!r.ok) {
+        const f = r.faltando ?? []
+        setFaltando(f)
+        // leva direto para a primeira pergunta incompleta (o erro aparece embaixo de cada uma)
+        setTimeout(() => document.getElementById(`p${f[0]?.pergunta_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+        return
+      }
       nav('/', { replace: true })
     } catch (e) { setErro((e as Error).message) }
   }
@@ -204,10 +211,7 @@ export default function Formulario() {
       {erro && <div className="aviso erro">{erro}</div>}
       {faltando.length > 0 && (
         <div className="aviso erro">
-          <strong>Faltam {faltando.length} itens para enviar:</strong>
-          <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
-            {faltando.slice(0, 8).map((f) => <li key={f.pergunta_id + f.motivo}><a href={`#p${f.pergunta_id}`}>{f.bloco}: {f.motivo}</a></li>)}
-          </ul>
+          <strong>{faltando.length === 1 ? 'Falta 1 item para enviar.' : `Faltam ${faltando.length} itens para enviar.`}</strong> As perguntas incompletas estão marcadas em vermelho, com o que falta embaixo de cada uma.
         </div>
       )}
       {registroGestor && (
@@ -236,7 +240,7 @@ export default function Formulario() {
             const ref = auto[p.id]
             const ops = p.escala_id ? rotulos[p.escala_id] ?? [] : []
             return (
-              <fieldset key={p.id} id={`p${p.id}`} className="pergunta" style={{ border: 0, margin: 0, padding: undefined }}>
+              <fieldset key={p.id} id={`p${p.id}`} className={`pergunta${faltando.some((f) => f.pergunta_id === p.id) ? ' com-erro' : ''}`} style={{ margin: 0 }}>
                 <legend className="pergunta-texto">{p.texto}{!p.obrigatoria && <span className="muted"> (opcional)</span>}</legend>
                 {p.tipo === 'escala' && (
                   <div className="escala" role="radiogroup" style={{ ['--n' as string]: ops.length }}>
@@ -298,6 +302,9 @@ export default function Formulario() {
                   <span className="auto-ref">Autoavaliação: {ops.find((o) => Number(o.valor) === Number(ref.valor))?.rotulo}{ref.evidencia ? ` — "${ref.evidencia}"` : ''}</span>
                 )}
                 {ref && p.tipo === 'aberta' && ref.texto && <span className="auto-ref">Autoavaliação: "{ref.texto}"</span>}
+                {faltando.filter((f) => f.pergunta_id === p.id).map((f) => (
+                  <div key={f.motivo} className="erro-campo" role="alert">⚠ {f.motivo}</div>
+                ))}
               </fieldset>
             )
           })}
