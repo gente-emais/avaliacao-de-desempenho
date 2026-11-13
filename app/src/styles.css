@@ -294,3 +294,16 @@ fieldset.pergunta { border-left: 0; border-right: 0; border-bottom: 0; }
 
 /* Diário: registro feito pelo gestor */
 .registro.do-gestor { border-left: 4px solid var(--verde-escuro); }
+
+/* Nova rodada: os 3 ciclos do ano */
+.ciclo-novo { border: 2px solid var(--verde-escuro); background: var(--ok-bg); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; position: relative; }
+.ciclo-novo[aria-disabled="true"] { border-color: var(--borda); background: #fff; opacity: .7; }
+.ciclo-num { width: 24px; height: 24px; border-radius: 50%; background: var(--verde-escuro); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Balão fixo do diário de bordo no formulário do gestor */
+.balao-diario { position: fixed; right: 24px; bottom: 24px; z-index: 40; min-height: 48px; padding: 0 18px; border-radius: 999px; background: var(--verde-escuro); color: #fff; border: 0; font-weight: 700; box-shadow: 0 8px 24px rgba(30,117,106,.35); animation: pulsar 1.8s ease-in-out infinite; }
+.balao-diario.aberto { animation: none; }
+@keyframes pulsar { 0%, 100% { box-shadow: 0 0 0 0 rgba(30,117,106,.55), 0 8px 24px rgba(30,117,106,.35); } 50% { box-shadow: 0 0 0 12px rgba(30,117,106,0), 0 8px 24px rgba(30,117,106,.35); } }
+@media (prefers-reduced-motion: reduce) { .balao-diario { animation: none; } }
+.balao-painel { position: fixed; right: 24px; bottom: 84px; z-index: 40; width: min(380px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; background: #fff; border: 1px solid var(--borda); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.balao-painel .item { border-top: 1px solid #eef2f8; padding-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }

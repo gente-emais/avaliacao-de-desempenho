@@ -17,7 +17,7 @@ interface Avaliacao {
   id: string; grupo: Grupo; status: StatusAvaliacao; formulario_id: number; avaliado_id: string; avaliador_id: string
   enviada_em: string | null; concluida_em: string | null
   rodada: { id: string; nome: string; tipo: TipoRodada; status: string }
-  avaliado: { nome: string; cargo: string | null; acesso_assistido: boolean }
+  avaliado: { nome: string; cargo: string | null; acesso_assistido: boolean; perfil: { nome: string } | null }
   avaliador: { nome: string; gestor_id: string | null }
   aceite: { aceito_em: string; em_nome_de: boolean } | { aceito_em: string; em_nome_de: boolean }[] | null
 }
@@ -30,7 +30,8 @@ const palavras = (t: string | null) => (t ?? '').trim().split(/\s+/).filter((w) 
 export default function Formulario() {
   const { id } = useParams()
   const nav = useNavigate()
-  const { eu } = useAuth()
+  const { eu, ehRh } = useAuth()
+  const [balao, setBalao] = useState(false)
   const [av, setAv] = useState<Avaliacao | null>(null)
   const [blocos, setBlocos] = useState<Bloco[]>([])
   const [opcoes, setOpcoes] = useState<Opcao[]>([])
@@ -54,7 +55,7 @@ export default function Formulario() {
     async function carregar() {
       const { data: a, error } = await supabase.from('avaliacoes').select(`id, grupo, status, formulario_id, avaliado_id, avaliador_id, enviada_em, concluida_em,
         rodada:rodadas(id, nome, tipo, status),
-        avaliado:pessoas!avaliacoes_avaliado_id_fkey(nome, cargo, acesso_assistido),
+        avaliado:pessoas!avaliacoes_avaliado_id_fkey(nome, cargo, acesso_assistido, perfil:perfis(nome)),
         avaliador:pessoas!avaliacoes_avaliador_id_fkey(nome, gestor_id),
         aceite:aceites(aceito_em, em_nome_de)`).eq('id', id).maybeSingle()
       if (error || !a) { setErro('Avaliação não encontrada ou sem permissão.'); return }
@@ -73,7 +74,7 @@ export default function Formulario() {
       setOpcoes((o.data as Opcao[]) ?? [])
       setResp(Object.fromEntries(((r.data as Resposta[]) ?? []).map((x) => [x.pergunta_id, x])))
 
-      // Diário de bordo do avaliado (o gestor vê só o que foi compartilhado)
+      // Diário de bordo do avaliado: o colaborador vê o dele (e o que o gestor registrou para ele); o gestor vê só o que ele mesmo registrou
       if (aval.rodada.tipo === 'avaliativo' && (aval.grupo === 'gestor' || aval.grupo === 'auto')) {
         const [{ data: dr }, { data: du }] = await Promise.all([
           supabase.from('diario_registros').select(SELECT_DIARIO).eq('pessoa_id', aval.avaliado_id).order('data', { ascending: false }),
@@ -191,14 +192,17 @@ export default function Formulario() {
   const podeAceitar = av.rodada.tipo === 'contratacao' && av.status === 'concluida' && !umAceite(av.aceite) &&
     (av.avaliado_id === eu?.id || (av.avaliador_id === eu?.id && av.avaliado.acesso_assistido))
 
+  const visaoRh = ehRh && av.avaliador_id !== eu?.id && av.avaliado_id !== eu?.id
+  // Balão do diário de bordo: gestor preenchendo o Ciclo Avaliativo do liderado vê as anotações que fez para ele
+  const mostraBalao = editavel && av.grupo === 'gestor' && av.rodada.tipo === 'avaliativo'
   const faixaCalc = notaRevisao == null ? null : faixasRev.find((f) => Math.round(notaRevisao * 100) / 100 >= f.minimo && Math.round(notaRevisao * 100) / 100 <= f.maximo)?.nome ?? null
   return (
     <>
       <div className="cabecalho">
         <div>
-          <Link to="/" className="migalha">← O que fazer agora</Link>
+          {visaoRh ? <Link to="/rh/acompanhamento" className="migalha">← Status das avaliações</Link> : <Link to="/" className="migalha">← O que fazer agora</Link>}
           <h1>{titulo}</h1>
-          <p className="muted">{av.rodada.nome}{av.avaliado.cargo ? ` · ${av.avaliado.cargo}` : ''}{av.avaliado.acesso_assistido && av.grupo === 'gestor' ? ' · preenchimento assistido pelo gestor' : ''}</p>
+          <p className="muted">{av.rodada.nome}{av.avaliado.cargo ? ` · ${av.avaliado.cargo}` : ''}{av.avaliado.perfil ? <> · Nível: <strong>{av.avaliado.perfil.nome}</strong></> : ''}{av.avaliado.acesso_assistido && av.grupo === 'gestor' ? ' · preenchimento assistido pelo gestor' : ''}</p>
         </div>
         {editavel ? (
           <div style={{ minWidth: 220 }}>
@@ -208,6 +212,11 @@ export default function Formulario() {
         ) : <span className={`pill ${STATUS[av.status].classe}`}>{STATUS[av.status].rotulo}</span>}
       </div>
 
+      {visaoRh && (
+        <div className="aviso neutro">
+          <strong>Visualização do RH.</strong> Você está vendo o que {av.avaliador.nome} já preencheu{['pendente', 'em_andamento'].includes(av.status) ? ', mesmo antes de enviar (as respostas são salvas automaticamente enquanto a pessoa preenche)' : ''}. Nada pode ser alterado por aqui.
+        </div>
+      )}
       {erro && <div className="aviso erro">{erro}</div>}
       {faltando.length > 0 && (
         <div className="aviso erro">
@@ -338,6 +347,32 @@ export default function Formulario() {
           </div>
           <div><button className="primario" onClick={revisar}>{ajuste ? 'Salvar ajuste e concluir' : 'Confirmar classificação'}</button></div>
         </section>
+      )}
+
+      {mostraBalao && (
+        <>
+          <button type="button" className={`balao-diario${balao ? ' aberto' : ''}`} onClick={() => setBalao(!balao)} aria-expanded={balao}>
+            <span aria-hidden="true">📒</span> Diário de bordo{diario.length ? ` (${diario.length})` : ''}
+          </button>
+          {balao && (
+            <aside className="balao-painel" role="dialog" aria-label="Diário de bordo">
+              <div className="linha entre">
+                <strong>Suas anotações sobre {av.avaliado.nome.split(' ')[0]}</strong>
+                <button type="button" className="pequeno" onClick={() => setBalao(false)}>Fechar</button>
+              </div>
+              <span className="muted">Registros que você fez no diário de bordo dessa pessoa ao longo do ano. Use como fatos e dados nas evidências.</span>
+              {diario.length === 0 && <p className="muted">Nenhum registro ainda.</p>}
+              {diario.map((d) => (
+                <div key={d.id} className="item">
+                  <div><span className={`marcador ${TIPOS[d.tipo]?.[1]}`}>{TIPOS[d.tipo]?.[0]}</span> <span className="muted">{dataBr(d.data)}</span></div>
+                  <b>{d.titulo}</b>
+                  {d.descricao && <div className="muted" style={{ whiteSpace: 'pre-line' }}>{d.descricao}</div>}
+                </div>
+              ))}
+              <Link className="botao pequeno" to={`/diario?pessoa=${av.avaliado_id}`} target="_blank">+ Novo registro (abre em outra aba)</Link>
+            </aside>
+          )}
+        </>
       )}
     </>
   )

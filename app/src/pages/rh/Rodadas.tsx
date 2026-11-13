@@ -31,8 +31,6 @@ const STATUS_RODADA: Record<string, [string, string]> = { rascunho: ['Rascunho',
 
 export default function Rodadas() {
   const [lista, setLista] = useState<RodadaCompleta[]>([])
-  const [tipo, setTipo] = useState<TipoRodada>('avaliativo')
-  const [nome, setNome] = useState('')
   const [ano, setAno] = useState(new Date().getFullYear())
   const [msg, setMsg] = useState<{ t: string; c: string } | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -76,37 +74,39 @@ export default function Rodadas() {
     })
   }, [])
 
-  function escolherTipo(t: TipoRodada) {
-    setTipo(t)
-    setNome(`${TIPO_RODADA[t]} ${ano}`)
-  }
-  useEffect(() => { setNome(`${TIPO_RODADA[tipo]} ${ano}`) }, [ano])
+
+  // Nova rodada: sempre os 3 ciclos do ano de referência juntos (Contratação, Ciclo Avaliativo e Ciclo de Feedback)
+  const TIPOS_ORDEM: TipoRodada[] = ['contratacao', 'avaliativo', 'feedback']
+  const jaExiste = (t: TipoRodada) => lista.some((r) => r.ano === ano && r.tipo === t && r.status !== 'historica')
+  const faltam = TIPOS_ORDEM.filter((t) => !jaExiste(t))
 
   async function salvar(abrir: boolean) {
     setMsg(null)
     if (salvando) return
-    if (lista.some((r) => r.nome.trim().toLowerCase() === nome.trim().toLowerCase())) {
-      return setMsg({ t: `Já existe uma rodada chamada "${nome}". Use outro nome (ex.: "${nome} – simulação").`, c: 'erro' })
-    }
+    if (!faltam.length) return setMsg({ t: `Os 3 ciclos de ${ano} já existem. Use os cartões abaixo para abrir, encerrar ou reabrir.`, c: 'erro' })
     setSalvando(true)
-    try { await salvarRodada(abrir) } finally { setSalvando(false) }
-  }
-
-  async function salvarRodada(abrir: boolean) {
-    // As etapas organizam a ordem da rodada; a EMAIS não trabalha com datas, então usamos a data de hoje como registro.
-    const hoje = new Date().toISOString().slice(0, 10)
-    const etapas: Etapa[] = ETAPAS[tipo].map((e) => ({ ...e, inicio: hoje, fim: hoje }))
-    const { data: r, error } = await supabase.from('rodadas').insert({
-      nome, tipo, ano,
-      escala_nota_id: tipo === 'avaliativo' ? (await supabase.from('escalas').select('id').eq('codigo', 'competencia').single()).data?.id : null,
-    }).select('id').single()
-    if (error || !r) return setMsg({ t: error?.message ?? 'Erro ao criar a rodada', c: 'erro' })
-    await supabase.from('rodada_etapas').insert(etapas.map((e) => ({ rodada_id: r.id, ordem: e.ordem, codigo: e.codigo, nome: e.nome, inicio: e.inicio, fim: e.fim })))
-    const { data: forms } = await supabase.from('formularios').select('id, perfil_id').eq('tipo_rodada', tipo).eq('ativo', true)
-    await supabase.from('rodada_formularios').insert(((forms as { id: number; perfil_id: number | null }[]) ?? []).map((f) => ({ rodada_id: r.id, perfil_id: f.perfil_id, formulario_id: f.id })))
-    if (abrir) await abrirRodada(r.id)
-    else setMsg({ t: 'Rascunho salvo. Abra a rodada quando estiver pronta.', c: 'ok' })
-    carregar()
+    try {
+      const hoje = new Date().toISOString().slice(0, 10)
+      const escala = (await supabase.from('escalas').select('id').eq('codigo', 'competencia').single()).data?.id
+      const abertas: string[] = []
+      for (const tipo of faltam) {
+        const { data: r, error } = await supabase.from('rodadas').insert({
+          nome: `${TIPO_RODADA[tipo]} ${ano}`, tipo, ano, escala_nota_id: tipo === 'avaliativo' ? escala : null,
+        }).select('id').single()
+        if (error || !r) { setMsg({ t: error?.message ?? 'Erro ao criar a rodada', c: 'erro' }); break }
+        await supabase.from('rodada_etapas').insert(ETAPAS[tipo].map((e) => ({ rodada_id: r.id, ordem: e.ordem, codigo: e.codigo, nome: e.nome, inicio: hoje, fim: hoje })))
+        const { data: forms } = await supabase.from('formularios').select('id, perfil_id').eq('tipo_rodada', tipo).eq('ativo', true)
+        await supabase.from('rodada_formularios').insert(((forms as { id: number; perfil_id: number | null }[]) ?? []).map((f) => ({ rodada_id: r.id, perfil_id: f.perfil_id, formulario_id: f.id })))
+        if (abrir) {
+          try { await rpc('abrir_rodada', { p_rodada: r.id }); abertas.push(TIPO_RODADA[tipo]) }
+          catch (e) { setMsg({ t: `${TIPO_RODADA[tipo]}: ${(e as Error).message}`, c: 'erro' }); break }
+        }
+      }
+      if (abrir && abertas.length) setMsg({ t: `Ciclos de ${ano} abertos: ${abertas.join(', ')}. Nenhum e-mail é enviado.`, c: 'ok' })
+      else if (!abrir) setMsg({ t: `Rascunhos de ${ano} salvos. Abra cada ciclo pelo cartão quando estiver pronto.`, c: 'ok' })
+      setMostrarNova(false)
+      carregar()
+    } finally { setSalvando(false) }
   }
 
   async function abrirRodada(id: string) {
@@ -169,17 +169,18 @@ export default function Rodadas() {
 
       {mostrarNova && <section className="card">
         <h2>Nova rodada</h2>
-        <div role="radiogroup" className="grade" style={{ ['--min' as string]: '220px' }}>
-          {(Object.keys(TIPO_RODADA) as TipoRodada[]).map((t) => (
-            <button key={t} type="button" role="radio" aria-checked={tipo === t} onClick={() => escolherTipo(t)}
-              style={{ minHeight: 90, flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', textAlign: 'left', borderWidth: tipo === t ? 2 : 1, borderColor: tipo === t ? 'var(--verde-escuro)' : undefined, background: tipo === t ? 'var(--ok-bg)' : '#fff' }}>
-              <span style={{ color: 'var(--texto)' }}>{TIPO_RODADA[t]}</span>
-              <span className="muted" style={{ fontWeight: 400 }}>{DESCRICAO[t]}</span>
-            </button>
+        <p className="muted" style={{ margin: 0 }}>Ao abrir, os 3 ciclos do ano de referência são criados e abertos juntos.</p>
+        <div className="grade" style={{ ['--min' as string]: '220px' }}>
+          {TIPOS_ORDEM.map((t, i) => (
+            <div key={t} className="ciclo-novo" aria-disabled={jaExiste(t)}>
+              <span className="ciclo-num">{i + 1}</span>
+              <span style={{ color: 'var(--texto)', fontWeight: 600 }}>{TIPO_RODADA[t]} {ano}</span>
+              <span className="muted">{DESCRICAO[t]}</span>
+              {jaExiste(t) && <span className="pill neutro">Já existe em {ano}</span>}
+            </div>
           ))}
         </div>
         <div className="grade" style={{ ['--min' as string]: '220px' }}>
-          <label className="campo">Nome da rodada<input value={nome} onChange={(e) => setNome(e.target.value)} /></label>
           <label className="campo">Ano de referência<input type="number" value={ano} onChange={(e) => setAno(Number(e.target.value))} /></label>
         </div>
         {contagem && (
@@ -189,8 +190,8 @@ export default function Rodadas() {
           </div>
         )}
         <div className="linha">
-          <button className="primario" disabled={salvando} onClick={() => salvar(true)}>{salvando ? 'Abrindo…' : 'Abrir rodada e avisar'}</button>
-          <button disabled={salvando} onClick={() => salvar(false)}>Salvar rascunho</button>
+          <button className="primario" disabled={salvando || !faltam.length} onClick={() => salvar(true)}>{salvando ? 'Abrindo…' : faltam.length === 3 ? `Abrir os 3 ciclos de ${ano}` : `Abrir ${faltam.length} ciclo(s) que faltam em ${ano}`}</button>
+          <button disabled={salvando || !faltam.length} onClick={() => salvar(false)}>Salvar como rascunho</button>
         </div>
       </section>}
 

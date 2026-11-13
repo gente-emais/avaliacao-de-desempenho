@@ -4,8 +4,8 @@ import { supabase, nomesPorId } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data as dataBr } from '../../lib/format'
 
-// Diário de bordo: o colaborador registra entregas e contribuições; o gestor vê o que foi compartilhado, comenta
-// e também pode fazer registros no diário do liderado (reconhecimentos, pontos de melhoria), sempre visíveis para ele.
+// Diário de bordo: o colaborador registra entregas e contribuições só para ele (o gestor não vê).
+// O gestor pode fazer registros no diário do liderado (reconhecimentos, pontos de melhoria): o liderado vê esses registros.
 export interface Registro {
   id: string; pessoa_id: string; autor_id: string; data: string; titulo: string; descricao: string | null; tipo: string
   competencia_id: number | null; link: string | null; compartilhado: boolean
@@ -69,7 +69,7 @@ export default function Diario() {
     const dados = {
       titulo: String(f.get('titulo') ?? '').trim(), descricao: String(f.get('descricao') ?? '').trim() || null,
       data: String(f.get('data') || new Date().toISOString().slice(0, 10)), link: String(f.get('link') ?? '').trim() || null,
-      tipo, competencia_id: comp, compartilhado: proprio ? f.get('compartilhado') === 'on' : true,
+      tipo, competencia_id: comp, compartilhado: !proprio,
     }
     if (dados.titulo.length < 3) return setMsg({ t: 'Escreva o que aconteceu.', c: 'erro' })
     const { error } = editando
@@ -98,15 +98,15 @@ export default function Diario() {
       </div>
       <p className="muted" style={{ maxWidth: 900 }}>
         {proprio
-          ? 'Registre suas entregas e contribuições ao longo do ano. Na autoavaliação e no One a One, você e seu gestor usam esses registros como fatos e dados.'
-          : 'Você vê os registros que a pessoa compartilhou com você e pode comentar. Também pode fazer os seus registros, como reconhecimentos e pontos de melhoria: eles ficam visíveis para a pessoa.'}
+          ? 'Registre suas entregas e contribuições ao longo do ano e use como fatos e dados na sua autoavaliação. Seus registros são só seus: seu gestor não vê. Os registros que o seu gestor fizer para você também aparecem aqui.'
+          : `Aqui ficam as anotações que você faz sobre ${nomeAlvo.split(' ')[0] || 'a pessoa'} ao longo do ano, como reconhecimentos e pontos de melhoria. A pessoa vê o que você registra. Os registros que ela faz no próprio diário são privados.`}
       </p>
       {msg && <div className={`aviso ${msg.c}`}>{msg.t}</div>}
 
       <div className="grade" style={{ ['--min' as string]: '160px' }}>
         <div className="kpi-filtro"><span className="muted">Registros em {ano}</span><b>{doAno.length}</b></div>
-        <div className="kpi-filtro"><span className="muted">Compartilhados com o gestor</span><b>{doAno.filter((r) => r.compartilhado).length}</b></div>
-        <div className="kpi-filtro"><span className="muted">Comentados pelo gestor</span><b>{doAno.filter((r) => r.comentarios.length).length}</b></div>
+        <div className="kpi-filtro"><span className="muted">Feitos por você</span><b>{doAno.filter((r) => r.autor_id === eu?.id).length}</b></div>
+        <div className="kpi-filtro"><span className="muted">{proprio ? 'Feitos pelo seu gestor' : 'Comentados pela pessoa'}</span><b>{proprio ? doAno.filter((r) => r.autor_id !== r.pessoa_id).length : doAno.filter((r) => r.comentarios.length).length}</b></div>
         <div className="kpi-filtro"><span className="muted">Usados como evidência</span><b>{doAno.filter((r) => r.usos.length).length}</b></div>
       </div>
 
@@ -127,9 +127,7 @@ export default function Diario() {
               <label className="campo">Data<input name="data" type="date" defaultValue={editando?.data ?? new Date().toISOString().slice(0, 10)} /></label>
               <label className="campo">Link (opcional)<input name="link" type="url" defaultValue={editando?.link ?? ''} placeholder="https://…" /></label>
             </div>
-            {proprio
-              ? <label className="linha" style={{ fontSize: 14 }}><input type="checkbox" name="compartilhado" defaultChecked={editando ? editando.compartilhado : true} style={{ minHeight: 0, width: 18, height: 18 }} />Compartilhar com meu gestor</label>
-              : <span className="muted">Este registro fica visível para {nomeAlvo.split(' ')[0] || 'a pessoa'}.</span>}
+            <span className="muted">{proprio ? 'Só você vê este registro.' : `Este registro fica visível para ${nomeAlvo.split(' ')[0] || 'a pessoa'}.`}</span>
             <div className="linha">
               <button className="primario">{editando ? 'Salvar alterações' : 'Salvar registro'}</button>
               {editando && <button type="button" onClick={() => limpar()}>Cancelar</button>}
@@ -145,7 +143,7 @@ export default function Diario() {
             </div>
             <select value={fComp} onChange={(e) => setFComp(e.target.value)} aria-label="Competência"><option value="">Todas as competências</option>{comps.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>
           </div>
-          {porMes.length === 0 && <div className="card"><p className="muted">{proprio ? 'Nenhum registro ainda. Comece pela sua entrega mais recente.' : 'Nenhum registro compartilhado ainda.'}</p></div>}
+          {porMes.length === 0 && <div className="card"><p className="muted">{proprio ? 'Nenhum registro ainda. Comece pela sua entrega mais recente.' : 'Você ainda não fez anotações para essa pessoa.'}</p></div>}
           {porMes.map(([mes, rs]) => (
             <div key={mes} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div className="mes-titulo">{mes}</div>
@@ -175,7 +173,7 @@ function CartaoRegistro({ r, comp, meu, autor, quem, proprio, onEditar, onApagar
         <div key={c.id} className="comentario-gestor"><b>{c.autor?.nome ?? 'Gestor'}</b><span>{c.texto}</span></div>
       ))}
       <div className="linha entre">
-        <span className="muted">{autor ? (proprio ? 'Registro do seu gestor' : 'Registro do gestor, visível para a pessoa') : r.compartilhado ? 'Compartilhado com o gestor' : 'Só eu vejo'}{r.usos.length ? ' · usado como evidência' : ''}</span>
+        <span className="muted">{autor ? (proprio ? 'Registro do seu gestor' : 'Seu registro, visível para a pessoa') : 'Só você vê'}{r.usos.length ? ' · usado como evidência' : ''}</span>
         {meu && <div className="linha"><button className="pequeno" onClick={onEditar}>Editar</button>{!r.usos.length && <button className="pequeno" onClick={onApagar}>Apagar</button>}</div>}
       </div>
       {!meu && (

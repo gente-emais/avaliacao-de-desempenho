@@ -30,14 +30,14 @@ export default function SeletorRodada({ rodadas, valor, onChange, tipos }: {
           ))}
         </div>
       )}
-      <div className="anos" role="radiogroup" aria-label="Rodada">
+      {doTipo.length > 1 && <div className="anos" role="radiogroup" aria-label="Rodada">
         {doTipo.map((r) => (
           <button key={r.id} role="radio" aria-checked={r.id === valor} className={`ano${r.id === valor ? ' atual' : ''}`} onClick={() => onChange(r.id)} title={r.nome}>
             {r.status === 'aberta' && <span className="ponto" aria-hidden="true" />}
             {repetido(r) ? r.nome.replace(TIPO_RODADA[r.tipo], '').trim() || r.nome : r.ano}
           </button>
         ))}
-      </div>
+      </div>}
       {atual && <span className="muted">{atual.nome} · <span className={`pill ${SITUACAO[atual.status][1]}`}>{SITUACAO[atual.status][0]}</span>{atual.resultado_liberado_em ? <> · <span className="pill ok">devolutiva liberada</span></> : null}</span>}
     </div>
   )

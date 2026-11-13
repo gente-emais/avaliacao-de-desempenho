@@ -1,13 +1,11 @@
 import { useSearchParams } from 'react-router-dom'
 import Faixas from './config/Faixas'
 import Formularios from './config/Formularios'
-import Colaboradores from './config/Colaboradores'
 import ImportarResultados from './config/ImportarResultados'
 
 const ABAS = [
   ['faixas', 'Faixas de classificação'],
   ['formularios', 'Formulários'],
-  ['colaboradores', 'Colaboradores'],
   ['importar', 'Importar resultados'],
 ] as const
 
@@ -28,7 +26,6 @@ export default function Configuracao() {
       </div>
       {aba === 'faixas' && <Faixas />}
       {aba === 'formularios' && <Formularios />}
-      {aba === 'colaboradores' && <Colaboradores />}
       {aba === 'importar' && <ImportarResultados />}
     </>
   )

@@ -33,10 +33,11 @@ export default function Acompanhamento() {
 
   useEffect(() => {
     supabase.from('perfis').select('id, nome').then(({ data }) => setPerfis(Object.fromEntries(((data as { id: number; nome: string }[]) ?? []).map((x) => [x.id, x.nome]))))
-    supabase.from('rodadas').select('*').in('status', ['aberta', 'encerrada']).order('criado_em', { ascending: false }).then(async ({ data }) => {
+    // Só o que está em andamento: rodadas abertas do ano atual ou anteriores (nada encerrado nem de anos futuros)
+    supabase.from('rodadas').select('*').eq('status', 'aberta').lte('ano', new Date().getFullYear()).order('criado_em', { ascending: false }).then(async ({ data }) => {
       const l = (data as Rodada[]) ?? []
       setRodadas(l)
-      if (!rodadaId && l[0]) {
+      if ((!rodadaId || !l.some((r) => r.id === rodadaId)) && l[0]) {
         // vindo de "Ver avaliações" da base: abre a rodada aberta mais recente em que a pessoa participa
         let alvo = l[0].id
         if (pessoaSel) {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase, rpc, type Grupo, type StatusAvaliacao, type TipoRodada } from '../lib/supabase'
 import { STATUS, dataHora, umAceite } from '../lib/format'
 
@@ -112,6 +113,7 @@ export default function AvaliacoesPessoa({ rodadaId, pessoaId, podeAgir, onFecha
                         </td>
                         {podeAgir && (
                           <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {a.status !== 'pendente' && a.status !== 'cancelada' && <><Link className="botao pequeno" to={`/avaliacao/${a.id}`}>Ver respostas</Link>{' '}</>}
                             {aberta && pend && <button className="pequeno" onClick={() => lembrar(a)}>Lembrar</button>}{' '}
                             {aberta && pend && g !== 'auto' && (trocando === a.id
                               ? <select autoFocus defaultValue="" onChange={(e) => e.target.value && trocar(a, e.target.value)} aria-label="Nova pessoa">

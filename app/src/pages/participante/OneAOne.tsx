@@ -6,7 +6,7 @@ import { supabase, PESSOA_COLS, type Pessoa } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
 import { data } from '../../lib/format'
 
-interface Combinado { id: string; acao: string; prazo: string; status: 'aberto' | 'concluido' | 'cancelado'; responsavel_id: string; responsavel: { nome: string } }
+interface Combinado { id: string; acao: string; prazo: string; status: 'aberto' | 'concluido' | 'cancelado'; responsavel_id: string; responsavel: { nome: string }; atualizacao: string | null; atualizado_em: string | null }
 interface Encontro {
   id: string; gestor_id: string; liderado_id: string; data: string; pauta: string | null; anotacoes_compartilhadas: string | null
   proximo_encontro: string | null; gestor: { nome: string }; liderado: { nome: string }; combinados: Combinado[]
@@ -18,7 +18,7 @@ const COMO_ONE: Explicacao = {
     { titulo: 'Agendamento', quem: 'Seu gestor', texto: 'A cada trimestre, o gestor marca o encontro e registra a pauta. A data do próximo encontro também fica registrada aqui.' },
     { titulo: 'Preparação', quem: 'Você', texto: 'Antes do encontro, leia a pauta e anote o que quer levar: entregas, dificuldades, ideias. O Diário de bordo ajuda a lembrar.' },
     { titulo: 'Conversa', quem: 'Você e seu gestor', texto: 'Falem sobre as atividades do dia a dia, as prioridades do trimestre e o andamento do seu PDI.' },
-    { titulo: 'Combinados', quem: 'Você e seu gestor', texto: 'As ações combinadas ficam registradas com responsável e prazo, junto com as anotações do gestor que você também pode ler. No próximo encontro, vocês retomam o que foi combinado.' },
+    { titulo: 'Combinados', quem: 'Você e seu gestor', texto: 'O gestor registra o encontro e as ações combinadas, com responsável e prazo. Tudo aparece aqui para você: vá atualizando o andamento de cada combinado e marque como concluído. No próximo encontro, vocês retomam o que foi combinado.' },
   ],
   ondeVer: 'Se você é gestor, use "+ Novo encontro" para agendar com cada pessoa da equipe. As anotações privadas só você vê.',
 }
@@ -36,7 +36,7 @@ export default function OneAOne() {
   async function carregar() {
     if (!eu) return
     const { data: e } = await supabase.from('encontros')
-      .select('*, gestor:pessoas!encontros_gestor_id_fkey(nome), liderado:pessoas!encontros_liderado_id_fkey(nome), combinados:encontro_combinados(id, acao, prazo, status, responsavel_id, responsavel:pessoas(nome))')
+      .select('*, gestor:pessoas!encontros_gestor_id_fkey(nome), liderado:pessoas!encontros_liderado_id_fkey(nome), combinados:encontro_combinados(id, acao, prazo, status, responsavel_id, atualizacao, atualizado_em, responsavel:pessoas(nome))')
       .order('data', { ascending: false })
     const lista = (e as unknown as Encontro[]) ?? []
     setEncontros(lista)
@@ -77,6 +77,10 @@ export default function OneAOne() {
     const f = new FormData(e.currentTarget)
     await supabase.from('encontro_combinados').insert({ encontro_id: sel.id, acao: f.get('acao'), responsavel_id: f.get('resp'), prazo: f.get('prazo') })
     e.currentTarget.reset(); carregar()
+  }
+  async function atualizar(c: Combinado, texto: string) {
+    if ((c.atualizacao ?? '') === texto) return
+    await supabase.from('encontro_combinados').update({ atualizacao: texto || null, atualizado_em: new Date().toISOString() }).eq('id', c.id); carregar()
   }
   async function concluir(c: Combinado) {
     await supabase.from('encontro_combinados').update({ status: c.status === 'concluido' ? 'aberto' : 'concluido' }).eq('id', c.id); carregar()
@@ -152,8 +156,8 @@ export default function OneAOne() {
             <section className="card">
               <h2>Combinados</h2>
               <div className="tabela-box">
-                <table style={{ minWidth: 560 }}>
-                  <thead><tr><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Situação</th><th></th></tr></thead>
+                <table style={{ minWidth: 720 }}>
+                  <thead><tr><th>Ação</th><th>Responsável</th><th>Prazo</th><th>Situação</th><th>Andamento</th><th></th></tr></thead>
                   <tbody>
                     {sel.combinados.map((c) => {
                       const [txt, cls] = situacao(c)
@@ -161,7 +165,11 @@ export default function OneAOne() {
                         <tr key={c.id}>
                           <td><strong>{c.acao}</strong></td><td>{c.responsavel?.nome}</td><td>{data(c.prazo)}</td>
                           <td><span className={`pill ${cls}`}>{txt}</span></td>
-                          <td>{(souGestor || c.responsavel_id === eu?.id) && <button className="pequeno" onClick={() => concluir(c)}>{c.status === 'concluido' ? 'Reabrir' : 'Concluir'}</button>}</td>
+                          <td style={{ minWidth: 200 }}>
+                            <textarea rows={2} key={c.id + (c.atualizado_em ?? '')} defaultValue={c.atualizacao ?? ''} placeholder="Como está esse combinado?" aria-label="Andamento" onBlur={(e) => atualizar(c, e.target.value.trim())} />
+                            {c.atualizado_em && <span className="muted" style={{ fontSize: 12 }}>Atualizado em {data(c.atualizado_em.slice(0, 10))}</span>}
+                          </td>
+                          <td>{(souGestor || sel.liderado_id === eu?.id) && <button className="pequeno" onClick={() => concluir(c)}>{c.status === 'concluido' ? 'Reabrir' : 'Concluir'}</button>}</td>
                         </tr>
                       )
                     })}
