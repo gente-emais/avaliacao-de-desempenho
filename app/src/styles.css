@@ -307,3 +307,8 @@ fieldset.pergunta { border-left: 0; border-right: 0; border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) { .balao-diario { animation: none; } }
 .balao-painel { position: fixed; right: 24px; bottom: 84px; z-index: 40; width: min(380px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; background: #fff; border: 1px solid var(--borda); border-radius: 14px; box-shadow: 0 16px 40px rgba(0,0,0,.18); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .balao-painel .item { border-top: 1px solid #eef2f8; padding-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+
+/* PDI: equipe do gestor */
+.pdi-equipe { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.pdi-pessoa { min-height: 0; padding: 10px 12px; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; font-weight: 400; }
+.pdi-pessoa.sel { border-color: var(--verde-escuro); box-shadow: inset 0 0 0 1px var(--verde-escuro); background: var(--ok-bg); }

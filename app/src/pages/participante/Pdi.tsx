@@ -36,13 +36,24 @@ export default function Pdi() {
   const [erro, setErro] = useState('')
   const [params] = useSearchParams()
   const anoSel = params.get('ano') ? Number(params.get('ano')) : null
+  const pessoaParam = params.get('pessoa')
+  // Gestor: resumo do PDI de cada pessoa da equipe (objetivos e concluídos)
+  const [resumoEquipe, setResumoEquipe] = useState<Record<string, { total: number; concluidos: number }>>({})
 
   useEffect(() => {
     if (!eu) return
-    setAlvo(eu.id)
+    setAlvo(pessoaParam ?? eu.id)
     supabase.from('competencias').select('id, nome').order('ordem').then(({ data }) => setComps(data ?? []))
-    if (temEquipe) supabase.from('pessoas').select(PESSOA_COLS).eq('gestor_id', eu.id).eq('ativo', true).order('nome').then(({ data }) => setPessoas((data as Pessoa[]) ?? []))
-  }, [eu?.id, temEquipe])
+    if (temEquipe) supabase.from('pessoas').select(PESSOA_COLS).eq('gestor_id', eu.id).eq('ativo', true).order('nome').then(async ({ data }) => {
+      const time = (data as Pessoa[]) ?? []
+      setPessoas(time)
+      if (!time.length) return
+      const { data: o } = await supabase.from('pdi_objetivos').select('pessoa_id, status').in('pessoa_id', time.map((p) => p.id))
+      const r: Record<string, { total: number; concluidos: number }> = {}
+      ;((o as { pessoa_id: string; status: string }[]) ?? []).forEach((x) => { const y = (r[x.pessoa_id] ||= { total: 0, concluidos: 0 }); y.total++; if (x.status === 'concluido') y.concluidos++ })
+      setResumoEquipe(r)
+    })
+  }, [eu?.id, temEquipe, pessoaParam])
 
   async function carregar() {
     if (!alvo) return
@@ -92,7 +103,7 @@ export default function Pdi() {
   return (
     <>
       <div className="cabecalho">
-        <div><div className="migalha">Meu espaço</div><h1>PDI · Objetivos</h1></div>
+        <div><div className="migalha">Meu espaço</div><h1>{alvo && alvo !== eu?.id ? `PDI de ${pessoas.find((p) => p.id === alvo)?.nome ?? ''}` : 'PDI · Objetivos'}</h1></div>
         <div className="linha">
           {temEquipe && (
             <select value={alvo} onChange={(e) => setAlvo(e.target.value)} aria-label="De quem é o PDI">
@@ -104,7 +115,26 @@ export default function Pdi() {
         </div>
       </div>
       <AbasMeuEspaco />
-      <ComoFunciona titulo="PDI" explicacao={COMO_PDI} aberto={objs.length === 0} />
+      <ComoFunciona titulo="PDI" explicacao={COMO_PDI} aberto={objs.length === 0 && alvo === eu?.id} />
+      {temEquipe && pessoas.length > 0 && (
+        <section className="card">
+          <h2>PDI da sua equipe</h2>
+          <div className="pdi-equipe">
+            <button type="button" className={`pdi-pessoa${alvo === eu?.id ? ' sel' : ''}`} onClick={() => setAlvo(eu!.id)}>
+              <strong>Meu PDI</strong>
+            </button>
+            {pessoas.map((p) => {
+              const r = resumoEquipe[p.id]
+              return (
+                <button key={p.id} type="button" className={`pdi-pessoa${alvo === p.id ? ' sel' : ''}`} onClick={() => setAlvo(p.id)}>
+                  <strong>{p.nome}</strong>
+                  <span className="muted">{r ? `${r.total} objetivo(s) · ${r.concluidos} concluído(s)` : 'Nenhum objetivo ainda'}</span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
       {anosPdi.length > 0 && (
         <nav className="anos" aria-label="Ano do PDI">
           <span className="muted">Ano:</span>

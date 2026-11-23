@@ -71,6 +71,7 @@ export default function Equipe() {
                 {!minhas.length && !auto.length && !ultimo && <Linha k="Rodadas" v="Nenhuma aberta" c="neutro" />}
               </dl>
               <Link className="botao acao-equipe" to={`/diario?pessoa=${p.id}`}>Diário de bordo</Link>
+              <Link className="botao acao-equipe" to={`/pdi?pessoa=${p.id}`}>PDI</Link>
               {[...new Map(avs.filter((a) => a.avaliado_id === p.id).map((a) => [a.rodada.id, a.rodada])).values()].map((ro) => (
                 <button key={ro.id} className="acao-equipe" onClick={() => setVer({ rodada: ro.id, pessoa: p.id, nome: p.nome })}>Quem avalia · {ro.nome}</button>
               ))}
